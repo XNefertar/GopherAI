@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 )
@@ -65,7 +66,10 @@ var DefaultRedisKeyConfig = RedisKeyConfig{
 	CaptchaPrefix: "captcha:%s",
 }
 
-var config *Config
+var (
+	config *Config
+	once   sync.Once
+)
 
 // InitConfig 初始化项目配置
 func InitConfig() error {
