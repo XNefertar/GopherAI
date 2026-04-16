@@ -82,9 +82,9 @@ func InitConfig() error {
 }
 
 func GetConfig() *Config {
-	if config == nil {
+	once.Do(func() {
 		config = new(Config)
 		_ = InitConfig()
-	}
+	})
 	return config
 }
