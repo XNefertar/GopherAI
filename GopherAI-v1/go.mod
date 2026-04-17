@@ -6,11 +6,16 @@ toolchain go1.24.9
 
 require (
 	github.com/BurntSushi/toml v1.5.0
+	github.com/cloudwego/eino v0.5.7
+	github.com/cloudwego/eino-ext/components/model/ollama v0.1.5
+	github.com/cloudwego/eino-ext/components/model/openai v0.1.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.6.0
 	github.com/streadway/amqp v1.1.0
+	github.com/yalue/onnxruntime_go v1.22.0
+	golang.org/x/image v0.32.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.0
@@ -25,9 +30,6 @@ require (
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino v0.5.7 // indirect
-	github.com/cloudwego/eino-ext/components/model/ollama v0.1.5 // indirect
-	github.com/cloudwego/eino-ext/components/model/openai v0.1.2 // indirect
 	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -70,14 +72,11 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	github.com/yalue/onnxruntime_go v1.22.0 // indirect
 	github.com/yargevad/filepathx v1.0.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
-	gocv.io/x/gocv v0.42.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
-	golang.org/x/image v0.32.0 // indirect
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
