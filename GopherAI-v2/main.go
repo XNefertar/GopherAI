@@ -64,6 +64,7 @@ func main() {
 	//初始化redis
 	redis.Init()
 	log.Println("redis init success  ")
+	//初始化rabbitmq
 	rabbitmq.InitRabbitMQ()
 	log.Println("rabbitmq init success  ")
 
