@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -71,14 +73,30 @@ var (
 	once   sync.Once
 )
 
+func configPathCandidates() []string {
+	return []string{
+		"config/config.local.toml",
+		"config/config.toml",
+	}
+}
+
 // InitConfig 初始化项目配置
 func InitConfig() error {
-	// 设置配置文件路径（相对于 main.go 所在的目录）
-	if _, err := toml.DecodeFile("config/config.toml", config); err != nil {
-		log.Fatal(err.Error())
-		return err
+	for _, configPath := range configPathCandidates() {
+		if _, err := os.Stat(configPath); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			log.Fatal(err.Error())
+			return err
+		}
+		if _, err := toml.DecodeFile(configPath, config); err != nil {
+			log.Fatal(err.Error())
+			return err
+		}
+		return nil
 	}
-	return nil
+	return fmt.Errorf("no config file found in config/config.local.toml or config/config.toml")
 }
 
 func GetConfig() *Config {

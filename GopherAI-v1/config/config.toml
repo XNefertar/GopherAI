@@ -4,7 +4,7 @@ host = "0.0.0.0"
 port = 9090
 
 [emailConfig]
-authcode = "your authcode "
+authcode = "your authcode"
 email = "your qq email"
 
 [redisConfig]
@@ -17,19 +17,19 @@ db = 0
 host = "127.0.0.1"
 port = 3306
 user = "root"
-password = "123456"
+password = "your mysql password"
 databaseName = "GopherAI"
 charset =  "utf8mb4"
 
 [jwtConfig]
- expire_duration= 8760
- issuer= "huanheart"
- subject= "GopherAI"
- key= "GopherAI-v1"
+expire_duration= 8760
+issuer= "huanheart"
+subject= "GopherAI"
+key= "GopherAI-v1"
 
- [rabbitmqConfig]
-  host= "127.0.0.1"
-  port= 5672
-  username= "root"
-  password= "123456"
-  vhost= "/"
+[rabbitmqConfig]
+host= "127.0.0.1"
+port= 5672
+username= "root"
+password= "your rabbitmq password"
+vhost= "/"
