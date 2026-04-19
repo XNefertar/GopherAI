@@ -122,7 +122,7 @@ func (m *AIHelperManager) CountUserSessions(userName string) int {
 	return len(userHelpers)
 }
 
-// 临时方法 for benchmark
+// Temporary method for benchmark
 func (m *AIHelperManager) SeedUserSessions(userName string, count int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
