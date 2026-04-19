@@ -1,7 +1,9 @@
 package aihelper
 
 import (
+	"GopherAI/model"
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -98,6 +100,46 @@ func (m *AIHelperManager) GetUserSessions(userName string) []string {
 	}
 
 	return sessionIDs
+}
+
+// ResetUserSessions clears all sessions for one user.
+func (m *AIHelperManager) ResetUserSessions(userName string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.helpers, userName)
+}
+
+// CountUserSessions returns the current in-memory session count for one user.
+func (m *AIHelperManager) CountUserSessions(userName string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	userHelpers, exists := m.helpers[userName]
+	if !exists {
+		return 0
+	}
+
+	return len(userHelpers)
+}
+
+// 临时方法 for benchmark
+func (m *AIHelperManager) SeedUserSessions(userName string, count int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Recreate the user's session map on every seed to avoid reusing stale
+	// benchmark sessions from a previous run in the same process.
+	userHelpers := make(map[string]*AIHelper, count)
+	m.helpers[userName] = userHelpers
+
+	for i := 0; i < count; i++ {
+		sessionID := fmt.Sprintf("bench-session-%06d", i)
+		userHelpers[sessionID] = &AIHelper{
+			SessionID: sessionID,
+			messages:  make([]*model.Message, 0),
+		}
+	}
 }
 
 // 全局管理器实例
