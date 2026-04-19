@@ -1,7 +1,6 @@
 package aihelper
 
 import (
-	"GopherAI/model"
 	"context"
 	"fmt"
 	"sync"
@@ -135,10 +134,7 @@ func (m *AIHelperManager) SeedUserSessions(userName string, count int) {
 
 	for i := 0; i < count; i++ {
 		sessionID := fmt.Sprintf("bench-session-%06d", i)
-		userHelpers[sessionID] = &AIHelper{
-			SessionID: sessionID,
-			messages:  make([]*model.Message, 0),
-		}
+		userHelpers[sessionID] = NewBenchmarkAIHelper(sessionID)
 	}
 }
 
