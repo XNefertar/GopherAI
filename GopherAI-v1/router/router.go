@@ -2,16 +2,26 @@ package router
 
 import (
 	"GopherAI/middleware/jwt"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
 func InitRouter() *gin.Engine {
+	var r *gin.Engine
 
-	r := gin.Default()
+	if os.Getenv("BENCH_MODE") == "http-baseline" {
+		gin.SetMode(gin.ReleaseMode)
+		r = gin.New()
+		r.Use(gin.Recovery())
+	} else {
+		r = gin.Default()
+	}
+
 	enterRouter := r.Group("/api/v1")
 	{
 		RegisterUserRouter(enterRouter.Group("/user"))
+		RegisterBenchRouter(enterRouter.Group("/bench"))
 	}
 	//后续登录的接口需要jwt鉴权
 	{

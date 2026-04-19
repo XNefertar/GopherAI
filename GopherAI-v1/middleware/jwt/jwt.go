@@ -6,6 +6,7 @@ import (
 	"GopherAI/utils/myjwt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +32,10 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		log.Println("token is ", token)
+		if os.Getenv("BENCH_MODE") == "http-baseline" {
+			log.Println("token is ", token)
+		}
+
 		userName, ok := myjwt.ParseToken(token)
 		if !ok {
 			c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidToken))

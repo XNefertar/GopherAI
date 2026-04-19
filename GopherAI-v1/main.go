@@ -10,7 +10,56 @@ import (
 	"GopherAI/router"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 )
+
+func benchMode() string {
+	return os.Getenv("BENCH_MODE")
+}
+
+func isBenchMode() bool {
+	switch benchMode() {
+	case "session-list", "http-baseline":
+		return true
+	default:
+		return false
+	}
+}
+
+func seedBenchSessionsIfNeeded() {
+	if benchMode() != "session-list" {
+		return
+	}
+
+	userName := os.Getenv("BENCH_USER")
+	if userName == "" {
+		userName = "bench-user"
+	}
+
+	countStr := os.Getenv("BENCH_SESSIONS")
+	if countStr == "" {
+		countStr = "100"
+	}
+	count, err := strconv.Atoi(countStr)
+	if err != nil || count < 0 {
+		log.Printf("invalid BENCH_SESSIONS=%q, fallback to 100", countStr)
+		count = 100
+	}
+
+	manager := aihelper.GetGlobalManager()
+	manager.SeedUserSessions(userName, count)
+	log.Printf(
+		"seeded benchmark sessions: user=%s requested=%d actual=%d",
+		userName,
+		count,
+		manager.CountUserSessions(userName),
+	)
+}
+
+func isHTTPBaselineMode() bool {
+	return os.Getenv("BENCH_MODE") == "http-baseline"
+}
 
 func StartServer(addr string, port int) error {
 	r := router.InitRouter()
@@ -53,19 +102,26 @@ func main() {
 	conf := config.GetConfig()
 	host := conf.MainConfig.Host
 	port := conf.MainConfig.Port
-	//初始化mysql
-	if err := mysql.InitMysql(); err != nil {
-		log.Println("InitMysql error , " + err.Error())
-		return
-	}
-	//初始化AIHelperManager
-	readDataFromDB()
 
-	//初始化redis
-	redis.Init()
-	log.Println("redis init success  ")
-	rabbitmq.InitRabbitMQ()
-	log.Println("rabbitmq init success  ")
+	if isBenchMode() {
+		log.Printf("running in benchmark mode: %s", benchMode())
+		seedBenchSessionsIfNeeded()
+	} else {
+		//初始化mysql
+		if err := mysql.InitMysql(); err != nil {
+			log.Println("InitMysql error , " + err.Error())
+			return
+		}
+		//初始化AIHelperManager
+		readDataFromDB()
+
+		//初始化redis
+		redis.Init()
+		log.Println("redis init success  ")
+		//初始化rabbitmq
+		rabbitmq.InitRabbitMQ()
+		log.Println("rabbitmq init success  ")
+	}
 
 	err := StartServer(host, port) // 启动 HTTP 服务
 	if err != nil {
