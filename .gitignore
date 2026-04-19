@@ -48,3 +48,6 @@ Thumbs.db
 
 # Local config files
 **/config.local.toml
+
+# Log file
+**/test_log/*
