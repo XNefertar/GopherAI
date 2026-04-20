@@ -155,7 +155,7 @@ export default {
       // lazy load history if not present
       if (!sessions.value[sessionId].messages || sessions.value[sessionId].messages.length === 0) {
         try {
-          const response = await api.post('/AI/chat/history', { sessionId: currentSessionId.value })
+          const response = await api.get('/AI/chat/history', { params: { sessionId: currentSessionId.value } })
           if (response.data && response.data.status_code === 1000 && Array.isArray(response.data.history)) {
             const messages = response.data.history.map(item => ({
               role: item.is_user ? 'user' : 'assistant',
@@ -180,7 +180,7 @@ export default {
         return
       }
       try {
-        const response = await api.post('/AI/chat/history', { sessionId: currentSessionId.value })
+        const response = await api.get('/AI/chat/history', { params: { sessionId: currentSessionId.value } })
         if (response.data && response.data.status_code === 1000 && Array.isArray(response.data.history)) {
           const messages = response.data.history.map(item => ({
             role: item.is_user ? 'user' : 'assistant',
