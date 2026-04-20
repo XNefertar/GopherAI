@@ -40,6 +40,9 @@ charset =  "utf8mb4"
   docDir = "./docs"
   baseUrl="https://dashscope.aliyuncs.com/compatible-mode/v1"
   dimension=1024
+  chunkSize=600
+  chunkOverlap=120
+  topK=5
 
   [voiceServiceConfig]
   voiceServiceApiKey = "baiduApiKey"
