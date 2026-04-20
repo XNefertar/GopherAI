@@ -38,9 +38,6 @@ type (
 		controller.Response
 	}
 
-	ChatHistoryRequest struct {
-		SessionID string `json:"sessionId,omitempty" binding:"required"` // 当前会话ID
-	}
 	ChatHistoryResponse struct {
 		History []model.History `json:"history"`
 		controller.Response
