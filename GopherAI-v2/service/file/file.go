@@ -28,7 +28,7 @@ func UploadRagFile(username string, file *multipart.FileHeader) (string, error) 
 		return "", err
 	}
 
-	// 删除用户目录中的所有现有文件及其索引（每个用户只能有一个文件）
+	// 遍历旧文件并删除其对应的 Redis 索引
 	files, err := os.ReadDir(userDir)
 	if err == nil {
 		for _, f := range files {
