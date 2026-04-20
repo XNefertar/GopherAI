@@ -18,10 +18,11 @@ type EmailConfig struct {
 }
 
 type RedisConfig struct {
-	RedisPort     int    `toml:"port"`
-	RedisDb       int    `toml:"db"`
-	RedisHost     string `toml:"host"`
-	RedisPassword string `toml:"password"`
+	RedisPort      int    `toml:"port"`
+	RedisDb        int    `toml:"db"`
+	RedisHost      string `toml:"host"`
+	RedisPassword  string `toml:"password"`
+	RedisTimeoutMs int    `toml:"timeoutMs"`
 }
 
 type MysqlConfig struct {

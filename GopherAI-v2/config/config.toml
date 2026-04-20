@@ -12,6 +12,7 @@ host = "127.0.0.1"
 port = 6379
 password = ""
 db = 0
+timeoutMs = 3000
 
 [mysqlConfig]
 host = "127.0.0.1"

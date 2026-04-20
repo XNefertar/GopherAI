@@ -13,7 +13,22 @@ import (
 
 var Rdb *redisCli.Client
 
-var ctx = context.Background()
+const defaultRedisTimeout = 3 * time.Second
+
+func getRedisTimeout() time.Duration {
+	timeoutMs := config.GetConfig().RedisConfig.RedisTimeoutMs
+	if timeoutMs <= 0 {
+		return defaultRedisTimeout
+	}
+	return time.Duration(timeoutMs) * time.Millisecond
+}
+
+func withOperationTimeout(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, getRedisTimeout())
+}
 
 func Init() {
 	conf := config.GetConfig()
@@ -22,26 +37,36 @@ func Init() {
 	password := conf.RedisConfig.RedisPassword
 	db := conf.RedisDb
 	addr := host + ":" + strconv.Itoa(port)
+	timeout := getRedisTimeout()
 
 	Rdb = redisCli.NewClient(&redisCli.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       db,
-		Protocol: 2, // 使用 Protocol 2 避免 maint_notifications 警告
+		Addr:         addr,
+		Password:     password,
+		DB:           db,
+		Protocol:     2, // 使用 Protocol 2 避免 maint_notifications 警告
+		DialTimeout:  timeout,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
 	})
 
 }
 
-func SetCaptchaForEmail(email, captcha string) error {
+func SetCaptchaForEmail(ctx context.Context, email, captcha string) error {
+	opCtx, cancel := withOperationTimeout(ctx)
+	defer cancel()
+
 	key := GenerateCaptcha(email)
 	expire := 2 * time.Minute
-	return Rdb.Set(ctx, key, captcha, expire).Err()
+	return Rdb.Set(opCtx, key, captcha, expire).Err()
 }
 
-func CheckCaptchaForEmail(email, userInput string) (bool, error) {
+func CheckCaptchaForEmail(ctx context.Context, email, userInput string) (bool, error) {
+	opCtx, cancel := withOperationTimeout(ctx)
+	defer cancel()
+
 	key := GenerateCaptcha(email)
 
-	storedCaptcha, err := Rdb.Get(ctx, key).Result()
+	storedCaptcha, err := Rdb.Get(opCtx, key).Result()
 	if err != nil {
 		if err == redisCli.Nil {
 
@@ -54,7 +79,7 @@ func CheckCaptchaForEmail(email, userInput string) (bool, error) {
 	if strings.EqualFold(storedCaptcha, userInput) {
 
 		// 验证成功后删除 key
-		if err := Rdb.Del(ctx, key).Err(); err != nil {
+		if err := Rdb.Del(opCtx, key).Err(); err != nil {
 
 		} else {
 
