@@ -154,7 +154,6 @@ func ChatStreamSend(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("X-Accel-Buffering", "no") // 禁止代理缓存
 
-
 	code_ := session.ChatStreamSend(userName, req.SessionID, req.UserQuestion, req.ModelType, http.ResponseWriter(c.Writer))
 	if code_ != code.CodeSuccess {
 		c.SSEvent("error", gin.H{"message": "Failed to send message"})
@@ -164,14 +163,14 @@ func ChatStreamSend(c *gin.Context) {
 }
 
 func ChatHistory(c *gin.Context) {
-	req := new(ChatHistoryRequest)
 	res := new(ChatHistoryResponse)
 	userName := c.GetString("userName") // From JWT middleware
-	if err := c.ShouldBindJSON(req); err != nil {
+	sessionID := c.Query("sessionId")
+	if sessionID == "" {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidParams))
 		return
 	}
-	history, code_ := session.GetChatHistory(userName, req.SessionID)
+	history, code_ := session.GetChatHistory(userName, sessionID)
 	if code_ != code.CodeSuccess {
 		c.JSON(http.StatusOK, res.CodeOf(code_))
 		return
