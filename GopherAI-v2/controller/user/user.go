@@ -13,7 +13,7 @@ type (
 	//这里的Username只能是账号登录，和我做的另一个项目有区别（邮箱账号均可)
 	LoginRequest struct {
 		Username string `json:"username"`
-		Password string `json:password`
+		Password string `json:"password"`
 	}
 	// omitempty当字段为空的时候，不返回这个东西
 	LoginResponse struct {
@@ -72,7 +72,7 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	token, code_ := user.Register(req.Email, req.Password, req.Captcha)
+	token, code_ := user.Register(c.Request.Context(), req.Email, req.Password, req.Captcha)
 	if code_ != code.CodeSuccess {
 		c.JSON(http.StatusOK, res.CodeOf(code_))
 		return
@@ -93,7 +93,7 @@ func HandleCaptcha(c *gin.Context) {
 	}
 
 	//给service层进行处理
-	code_ := user.SendCaptcha(req.Email)
+	code_ := user.SendCaptcha(c.Request.Context(), req.Email)
 	if code_ != code.CodeSuccess {
 		c.JSON(http.StatusOK, res.CodeOf(code_))
 		return

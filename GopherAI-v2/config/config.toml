@@ -12,6 +12,7 @@ host = "127.0.0.1"
 port = 6379
 password = ""
 db = 0
+timeoutMs = 3000
 
 [mysqlConfig]
 host = "127.0.0.1"
@@ -40,6 +41,9 @@ charset =  "utf8mb4"
   docDir = "./docs"
   baseUrl="https://dashscope.aliyuncs.com/compatible-mode/v1"
   dimension=1024
+  chunkSize=600
+  chunkOverlap=120
+  topK=5
 
   [voiceServiceConfig]
   voiceServiceApiKey = "baiduApiKey"

@@ -18,10 +18,11 @@ type EmailConfig struct {
 }
 
 type RedisConfig struct {
-	RedisPort     int    `toml:"port"`
-	RedisDb       int    `toml:"db"`
-	RedisHost     string `toml:"host"`
-	RedisPassword string `toml:"password"`
+	RedisPort      int    `toml:"port"`
+	RedisDb        int    `toml:"db"`
+	RedisHost      string `toml:"host"`
+	RedisPassword  string `toml:"password"`
+	RedisTimeoutMs int    `toml:"timeoutMs"`
 }
 
 type MysqlConfig struct {
@@ -54,6 +55,9 @@ type RagModelConfig struct {
 	RagDocDir         string `toml:"docDir"`
 	RagBaseUrl        string `toml:"baseUrl"`
 	RagDimension      int    `toml:"dimension"`
+	RagChunkSize      int    `toml:"chunkSize"`
+	RagChunkOverlap   int    `toml:"chunkOverlap"`
+	RagTopK           int    `toml:"topK"`
 }
 
 type VoiceServiceConfig struct {
