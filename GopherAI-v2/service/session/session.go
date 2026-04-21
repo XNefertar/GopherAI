@@ -12,8 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var ctx = context.Background()
-
 func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
 	//获取用户的所有会话ID
 
@@ -32,7 +30,7 @@ func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
 	return SessionInfos, nil
 }
 
-func CreateSessionAndSendMessage(userName string, userQuestion string, modelType string) (string, string, code.Code) {
+func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuestion string, modelType string) (string, string, code.Code) {
 	//1：创建一个新的会话
 	newSession := &model.Session{
 		ID:       uuid.New().String(),
@@ -81,7 +79,7 @@ func CreateStreamSessionOnly(userName string, userQuestion string) (string, code
 	return createdSession.ID, code.CodeSuccess
 }
 
-func StreamMessageToExistingSession(userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
+func StreamMessageToExistingSession(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
 	// 确保 writer 支持 Flush
 	flusher, ok := writer.(http.Flusher)
 	if !ok {
@@ -129,14 +127,14 @@ func StreamMessageToExistingSession(userName string, sessionID string, userQuest
 	return code.CodeSuccess
 }
 
-func CreateStreamSessionAndSendMessage(userName string, userQuestion string, modelType string, writer http.ResponseWriter) (string, code.Code) {
+func CreateStreamSessionAndSendMessage(ctx context.Context, userName string, userQuestion string, modelType string, writer http.ResponseWriter) (string, code.Code) {
 
 	sessionID, code_ := CreateStreamSessionOnly(userName, userQuestion)
 	if code_ != code.CodeSuccess {
 		return "", code_
 	}
 
-	code_ = StreamMessageToExistingSession(userName, sessionID, userQuestion, modelType, writer)
+	code_ = StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
 	if code_ != code.CodeSuccess {
 
 		return sessionID, code_
@@ -145,7 +143,7 @@ func CreateStreamSessionAndSendMessage(userName string, userQuestion string, mod
 	return sessionID, code.CodeSuccess
 }
 
-func ChatSend(userName string, sessionID string, userQuestion string, modelType string) (string, code.Code) {
+func ChatSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string) (string, code.Code) {
 	//1：获取AIHelper
 	manager := aihelper.GetGlobalManager()
 	config := map[string]interface{}{
@@ -190,7 +188,7 @@ func GetChatHistory(userName string, sessionID string) ([]model.History, code.Co
 	return history, code.CodeSuccess
 }
 
-func ChatStreamSend(userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
+func ChatStreamSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
 
-	return StreamMessageToExistingSession(userName, sessionID, userQuestion, modelType, writer)
+	return StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
 }

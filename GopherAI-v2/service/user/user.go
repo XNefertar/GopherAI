@@ -8,6 +8,7 @@ import (
 	"GopherAI/model"
 	"GopherAI/utils"
 	"GopherAI/utils/myjwt"
+	"context"
 )
 
 func Login(username, password string) (string, code.Code) {
@@ -31,7 +32,7 @@ func Login(username, password string) (string, code.Code) {
 	return token, code.CodeSuccess
 }
 
-func Register(email, password, captcha string) (string, code.Code) {
+func Register(ctx context.Context, email, password, captcha string) (string, code.Code) {
 
 	var ok bool
 	var userInformation *model.User
@@ -42,7 +43,7 @@ func Register(email, password, captcha string) (string, code.Code) {
 	}
 
 	//2:从redis中验证验证码是否有效
-	if ok, _ := myredis.CheckCaptchaForEmail(email, captcha); !ok {
+	if ok, _ := myredis.CheckCaptchaForEmail(ctx, email, captcha); !ok {
 		return "", code.CodeInvalidCaptcha
 	}
 
@@ -73,10 +74,10 @@ func Register(email, password, captcha string) (string, code.Code) {
 // 分为以下任务：
 // 1：先存放redis
 // 2：再进行远程发送
-func SendCaptcha(email_ string) code.Code {
+func SendCaptcha(ctx context.Context, email_ string) code.Code {
 	send_code := utils.GetRandomNumbers(6)
 	//1:先存放到redis
-	if err := myredis.SetCaptchaForEmail(email_, send_code); err != nil {
+	if err := myredis.SetCaptchaForEmail(ctx, email_, send_code); err != nil {
 		return code.CodeServerBusy
 	}
 

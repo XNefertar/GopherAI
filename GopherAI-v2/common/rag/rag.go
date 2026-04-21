@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	embeddingArk "github.com/cloudwego/eino-ext/components/embedding/ark"
 	redisIndexer "github.com/cloudwego/eino-ext/components/indexer/redis"
@@ -25,6 +26,54 @@ type RAGIndexer struct {
 type RAGQuery struct {
 	embedding embedding.Embedder
 	retriever retriever.Retriever
+}
+
+const (
+	defaultChunkSize    = 600
+	defaultChunkOverlap = 120
+	defaultTopK         = 5
+)
+
+// splitTextIntoChunks 将长文本切成多个带重叠的片段，提升检索粒度。
+func splitTextIntoChunks(text string, chunkSize, overlap int) []string {
+	if chunkSize <= 0 {
+		chunkSize = defaultChunkSize
+	}
+	if overlap < 0 {
+		overlap = 0
+	}
+	if overlap >= chunkSize {
+		overlap = chunkSize / 5
+	}
+
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return nil
+	}
+
+	step := chunkSize - overlap
+	if step <= 0 {
+		step = chunkSize
+	}
+
+	chunks := make([]string, 0, (len(runes)+step-1)/step)
+	for start := 0; start < len(runes); start += step {
+		end := start + chunkSize
+		if end > len(runes) {
+			end = len(runes)
+		}
+
+		chunk := strings.TrimSpace(string(runes[start:end]))
+		if chunk != "" {
+			chunks = append(chunks, chunk)
+		}
+
+		if end == len(runes) {
+			break
+		}
+	}
+
+	return chunks
 }
 
 // 构建知识库索引
@@ -137,20 +186,32 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// 将文件内容转换为文档
-	// TODO: 这里可以根据需要进行文本切块，目前简单处理为一个文档
-	doc := &schema.Document{
-		ID:      "doc_1", // 可以使用 UUID 或其他唯一标识
-		Content: string(content),
-		MetaData: map[string]any{
-			"source": filePath,
-		},
+	ragConfig := config.GetConfig().RagModelConfig
+	chunkSize := ragConfig.RagChunkSize
+	chunkOverlap := ragConfig.RagChunkOverlap
+
+	// 将长文本切成多个片段，确保 TopK 检索能从多个候选片段中挑选结果。
+	chunks := splitTextIntoChunks(string(content), chunkSize, chunkOverlap)
+	if len(chunks) == 0 {
+		return fmt.Errorf("no valid content chunks found")
 	}
 
-	// 使用 indexer 存储文档（会自动进行向量化）
-	_, err = r.indexer.Store(ctx, []*schema.Document{doc})
+	docs := make([]*schema.Document, 0, len(chunks))
+	for i, chunk := range chunks {
+		docs = append(docs, &schema.Document{
+			ID:      fmt.Sprintf("doc_%d", i),
+			Content: chunk,
+			MetaData: map[string]any{
+				"source":      filePath,
+				"chunk_index": i,
+			},
+		})
+	}
+
+	// 使用 indexer 批量存储多个文档片段（会自动进行向量化）
+	_, err = r.indexer.Store(ctx, docs)
 	if err != nil {
-		return fmt.Errorf("failed to store document: %w", err)
+		return fmt.Errorf("failed to store document chunks: %w", err)
 	}
 
 	return nil
@@ -168,6 +229,10 @@ func DeleteIndex(ctx context.Context, filename string) error {
 func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
 	cfg := config.GetConfig()
 	apiKey := os.Getenv("OPENAI_API_KEY")
+	topK := cfg.RagModelConfig.RagTopK
+	if topK <= 0 {
+		topK = defaultTopK
+	}
 
 	// 创建 embedding 模型
 	embedConfig := &embeddingArk.EmbeddingConfig{
@@ -209,7 +274,7 @@ func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
 		Index:        indexName,
 		Dialect:      2,
 		ReturnFields: []string{"content", "metadata", "distance"},
-		TopK:         5,
+		TopK:         topK,
 		VectorField:  "vector",
 		DocumentConverter: func(ctx context.Context, doc redisCli.Document) (*schema.Document, error) {
 			resp := &schema.Document{
@@ -255,9 +320,9 @@ func BuildRAGPrompt(query string, docs []*schema.Document) string {
 		return query
 	}
 
-	contextText := ""
+	var contextBuilder strings.Builder
 	for i, doc := range docs {
-		contextText += fmt.Sprintf("[文档 %d]: %s\n\n", i+1, doc.Content)
+		fmt.Fprintf(&contextBuilder, "[文档 %d]: %s\n\n", i+1, doc.Content)
 	}
 
 	prompt := fmt.Sprintf(`基于以下参考文档回答用户的问题。如果文档中没有相关信息，请说明无法找到相关信息。
@@ -267,7 +332,7 @@ func BuildRAGPrompt(query string, docs []*schema.Document) string {
 
 用户问题：%s
 
-请提供准确、完整的回答：`, contextText, query)
+请提供准确、完整的回答：`, contextBuilder.String(), query)
 
 	return prompt
 }
