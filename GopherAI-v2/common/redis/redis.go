@@ -2,7 +2,9 @@ package redis
 
 import (
 	"GopherAI/config"
+	"GopherAI/model"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,6 +16,17 @@ import (
 var Rdb *redisCli.Client
 
 const defaultRedisTimeout = 3 * time.Second
+const defaultUserCacheTTL = 10 * time.Minute
+
+type cachedUser struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Username  string    `json:"username"`
+	Password  string    `json:"password"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
 
 func getRedisTimeout() time.Duration {
 	timeoutMs := config.GetConfig().RedisConfig.RedisTimeoutMs
@@ -49,6 +62,73 @@ func Init() {
 		WriteTimeout: timeout,
 	})
 
+}
+
+func GetUserByUsername(ctx context.Context, username string) (*model.User, bool, error) {
+	if Rdb == nil {
+		return nil, false, nil
+	}
+
+	opCtx, cancel := withOperationTimeout(ctx)
+	defer cancel()
+
+	cacheValue, err := Rdb.Get(opCtx, GenerateUserCacheKey(username)).Bytes()
+	if err != nil {
+		if err == redisCli.Nil {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	var cached cachedUser
+	if err := json.Unmarshal(cacheValue, &cached); err != nil {
+		return nil, false, err
+	}
+
+	return &model.User{
+		ID:        cached.ID,
+		Name:      cached.Name,
+		Email:     cached.Email,
+		Username:  cached.Username,
+		Password:  cached.Password,
+		CreatedAt: cached.CreatedAt,
+		UpdatedAt: cached.UpdatedAt,
+	}, true, nil
+}
+
+func CacheUserByUsername(ctx context.Context, user *model.User) error {
+	if Rdb == nil || user == nil {
+		return nil
+	}
+
+	opCtx, cancel := withOperationTimeout(ctx)
+	defer cancel()
+
+	payload, err := json.Marshal(cachedUser{
+		ID:        user.ID,
+		Name:      user.Name,
+		Email:     user.Email,
+		Username:  user.Username,
+		Password:  user.Password,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	})
+	if err != nil {
+		return err
+	}
+
+	return Rdb.Set(opCtx, GenerateUserCacheKey(user.Username), payload, defaultUserCacheTTL).Err()
+}
+
+func DeleteUserCacheByUsername(ctx context.Context, username string) error {
+	if Rdb == nil {
+		return nil
+	}
+
+	opCtx, cancel := withOperationTimeout(ctx)
+	defer cancel()
+
+	return Rdb.Del(opCtx, GenerateUserCacheKey(username)).Err()
 }
 
 func SetCaptchaForEmail(ctx context.Context, email, captcha string) error {

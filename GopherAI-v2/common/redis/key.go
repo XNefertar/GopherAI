@@ -19,3 +19,7 @@ func GenerateIndexNamePrefix(filename string) string {
 	prefix := fmt.Sprintf(config.DefaultRedisKeyConfig.IndexNamePrefix, filename)
 	return prefix
 }
+
+func GenerateUserCacheKey(username string) string {
+	return fmt.Sprintf("user:username:%s", username)
+}
