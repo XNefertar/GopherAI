@@ -34,12 +34,21 @@ func (m *AIHelperManager) GetOrCreateAIHelper(userName string, sessionID string,
 
 	// 检查会话是否已存在
 	helper, exists := userHelpers[sessionID]
+	factory := GetGlobalFactory()
 	if exists {
-		return helper, nil
+		if helper.GetModelType() == modelType {
+			return helper, nil
+		} else {
+			newModel, err := factory.CreateAIModel(ctx, modelType, config)
+			if err != nil {
+				return nil, err
+			}
+			helper.SwitchModel(newModel)
+			return helper, nil
+		}
 	}
 
 	// 创建新的AIHelper
-	factory := GetGlobalFactory()
 	helper, err := factory.CreateAIHelper(ctx, modelType, sessionID, config)
 	if err != nil {
 		return nil, err
