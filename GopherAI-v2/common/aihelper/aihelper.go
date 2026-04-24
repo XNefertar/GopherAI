@@ -41,7 +41,9 @@ func (a *AIHelper) AddMessage(Content string, UserName string, IsUser bool, Save
 		UserName:  UserName,
 		IsUser:    IsUser,
 	}
+	a.mu.Lock()
 	a.messages = append(a.messages, &userMsg)
+	a.mu.Unlock()
 	if Save {
 		a.saveFunc(&userMsg)
 	}
@@ -71,10 +73,11 @@ func (a *AIHelper) GenerateResponse(userName string, ctx context.Context, userQu
 	a.mu.RLock()
 	//将model.Message转化成schema.Message
 	messages := utils.ConvertToSchemaMessages(a.messages)
+	currentModel := a.model
 	a.mu.RUnlock()
 
 	//调用模型生成回复
-	schemaMsg, err := a.model.GenerateResponse(ctx, messages)
+	schemaMsg, err := currentModel.GenerateResponse(ctx, messages)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +99,10 @@ func (a *AIHelper) StreamResponse(userName string, ctx context.Context, cb Strea
 
 	a.mu.RLock()
 	messages := utils.ConvertToSchemaMessages(a.messages)
+	currentModel := a.model
 	a.mu.RUnlock()
 
-	content, err := a.model.StreamResponse(ctx, messages, cb)
+	content, err := currentModel.StreamResponse(ctx, messages, cb)
 	if err != nil {
 		return nil, err
 	}
@@ -119,4 +123,10 @@ func (a *AIHelper) StreamResponse(userName string, ctx context.Context, cb Strea
 // GetModelType 获取模型类型
 func (a *AIHelper) GetModelType() string {
 	return a.model.GetModelType()
+}
+
+func (a *AIHelper) SwitchModel(newModel AIModel) {
+	a.mu.Lock()
+	a.model = newModel
+	a.mu.Unlock()
 }
