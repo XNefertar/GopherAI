@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"GopherAI/dao/message"
 	"GopherAI/model"
+	"context"
 	"encoding/json"
 
 	"github.com/streadway/amqp"
@@ -39,6 +40,6 @@ func MQMessage(msg *amqp.Delivery) error {
 		IsUser:    param.IsUser,
 	}
 	//消费者异步插入到数据库中
-	message.CreateMessage(newMsg)
+	_, _ = message.CreateMessage(context.Background(), newMsg)
 	return nil
 }

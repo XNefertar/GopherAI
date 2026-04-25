@@ -37,7 +37,7 @@ func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuest
 		UserName: userName,
 		Title:    userQuestion, // 可以根据需求设置标题，这边暂时用用户第一次的问题作为标题
 	}
-	createdSession, err := session.CreateSession(newSession)
+	createdSession, err := session.CreateSession(ctx, newSession)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage CreateSession error:", err)
 		return "", "", code.CodeServerBusy
@@ -50,14 +50,14 @@ func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuest
 		log.Println("CreateSessionAndSendMessage BuildSessionCreateOptions error:", err)
 		return "", "", code.AIModelFail
 	}
-	helper, err := manager.GetOrCreateAIHelper(userName, createdSession.ID, opts)
+	helper, err := manager.GetOrCreateAIHelper(ctx, userName, createdSession.ID, opts)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage GetOrCreateAIHelper error:", err)
 		return "", "", code.AIModelFail
 	}
 
 	//3：生成AI回复
-	aiResponse, err_ := helper.GenerateResponse(userName, ctx, userQuestion)
+	aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
 	if err_ != nil {
 		log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
 		return "", "", code.AIModelFail
@@ -66,13 +66,13 @@ func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuest
 	return createdSession.ID, aiResponse.Content, code.CodeSuccess
 }
 
-func CreateStreamSessionOnly(userName string, userQuestion string) (string, code.Code) {
+func CreateStreamSessionOnly(ctx context.Context, userName string, userQuestion string) (string, code.Code) {
 	newSession := &model.Session{
 		ID:       uuid.New().String(),
 		UserName: userName,
 		Title:    userQuestion,
 	}
-	createdSession, err := session.CreateSession(newSession)
+	createdSession, err := session.CreateSession(ctx, newSession)
 	if err != nil {
 		log.Println("CreateStreamSessionOnly CreateSession error:", err)
 		return "", code.CodeServerBusy
@@ -94,7 +94,7 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 		log.Println("StreamMessageToExistingSession BuildSessionCreateOptions error:", err)
 		return code.AIModelFail
 	}
-	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, opts)
+	helper, err := manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
 	if err != nil {
 		log.Println("StreamMessageToExistingSession GetOrCreateAIHelper error:", err)
 		return code.AIModelFail
@@ -113,7 +113,7 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 		log.Println("[SSE] Flushed")
 	}
 
-	_, err_ := helper.StreamResponse(userName, ctx, cb, userQuestion)
+	_, err_ := helper.StreamResponse(ctx, userName, cb, userQuestion)
 	if err_ != nil {
 		log.Println("StreamMessageToExistingSession StreamResponse error:", err_)
 		return code.AIModelFail
@@ -131,15 +131,16 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 
 func CreateStreamSessionAndSendMessage(ctx context.Context, userName string, userQuestion string, modelType string, writer http.ResponseWriter) (string, code.Code) {
 
-	sessionID, code_ := CreateStreamSessionOnly(userName, userQuestion)
-	if code_ != code.CodeSuccess {
-		return "", code_
+	sessionID, statusCode := CreateStreamSessionOnly(ctx, userName, userQuestion)
+	if statusCode != code.CodeSuccess {
+		return "", statusCode
 	}
 
-	code_ = StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
-	if code_ != code.CodeSuccess {
+	// 开始把本次回答进行流式发送（包含最后的 [DONE]）
+	statusCode = StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
+	if statusCode != code.CodeSuccess {
 
-		return sessionID, code_
+		return sessionID, statusCode
 	}
 
 	return sessionID, code.CodeSuccess
@@ -153,14 +154,14 @@ func ChatSend(ctx context.Context, userName string, sessionID string, userQuesti
 		log.Println("ChatSend BuildSessionCreateOptions error:", err)
 		return "", code.AIModelFail
 	}
-	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, opts)
+	helper, err := manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
 	if err != nil {
 		log.Println("ChatSend GetOrCreateAIHelper error:", err)
 		return "", code.AIModelFail
 	}
 
 	//2：生成AI回复
-	aiResponse, err_ := helper.GenerateResponse(userName, ctx, userQuestion)
+	aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
 	if err_ != nil {
 		log.Println("ChatSend GenerateResponse error:", err_)
 		return "", code.AIModelFail
@@ -193,6 +194,5 @@ func GetChatHistory(userName string, sessionID string) ([]model.History, code.Co
 }
 
 func ChatStreamSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
-
 	return StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
 }

@@ -6,8 +6,6 @@ import (
 	"sync"
 )
 
-var ctx = context.Background()
-
 // AIHelperManager AI助手管理器，管理用户-会话-AIHelper的映射关系
 type AIHelperManager struct {
 	helpers map[string]map[string]*AIHelper // map[用户账号（唯一）]map[会话ID]*AIHelper
@@ -22,7 +20,7 @@ func NewAIHelperManager() *AIHelperManager {
 }
 
 // 获取或创建AIHelper
-func (m *AIHelperManager) GetOrCreateAIHelper(userName string, sessionID string, opts CreateOptions) (*AIHelper, error) {
+func (m *AIHelperManager) GetOrCreateAIHelper(ctx context.Context, userName string, sessionID string, opts CreateOptions) (*AIHelper, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
