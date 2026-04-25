@@ -40,6 +40,6 @@ func MQMessage(msg *amqp.Delivery) error {
 		IsUser:    param.IsUser,
 	}
 	//消费者异步插入到数据库中
-	_, _ = message.CreateMessage(context.Background(), newMsg)
+	message.CreateMessage(context.Background(), newMsg)
 	return nil
 }
