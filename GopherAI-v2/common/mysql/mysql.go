@@ -3,6 +3,7 @@ package mysql
 import (
 	"GopherAI/config"
 	"GopherAI/model"
+	"context"
 	"fmt"
 	"time"
 
@@ -67,13 +68,13 @@ func migration() error {
 	)
 }
 
-func InsertUser(user *model.User) (*model.User, error) {
-	err := DB.Create(&user).Error
+func InsertUser(ctx context.Context, user *model.User) (*model.User, error) {
+	err := DB.WithContext(ctx).Create(&user).Error
 	return user, err
 }
 
-func GetUserByUsername(username string) (*model.User, error) {
+func GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
 	user := new(model.User)
-	err := DB.Where("username = ?", username).First(user).Error
+	err := DB.WithContext(ctx).Where("username = ?", username).First(user).Error
 	return user, err
 }

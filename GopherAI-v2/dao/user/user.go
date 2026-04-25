@@ -17,9 +17,9 @@ const (
 var ctx = context.Background()
 
 // 这边只能通过账号进行登录
-func IsExistUser(username string) (bool, *model.User) {
+func IsExistUser(ctx context.Context, username string) (bool, *model.User) {
 
-	user, err := mysql.GetUserByUsername(username)
+	user, err := mysql.GetUserByUsername(ctx, username)
 
 	if err == gorm.ErrRecordNotFound || user == nil {
 		return false, nil
@@ -28,8 +28,8 @@ func IsExistUser(username string) (bool, *model.User) {
 	return true, user
 }
 
-func Register(username, email, password string) (*model.User, bool) {
-	if user, err := mysql.InsertUser(&model.User{
+func Register(ctx context.Context, username, email, password string) (*model.User, bool) {
+	if user, err := mysql.InsertUser(ctx, &model.User{
 		Email:    email,
 		Name:     username,
 		Username: username,

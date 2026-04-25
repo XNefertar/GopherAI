@@ -19,9 +19,9 @@ type AIHelper struct {
 }
 
 // NewAIHelper 创建新的AIHelper实例
-func NewAIHelper(model_ AIModel, SessionID string) *AIHelper {
+func NewAIHelper(aiModel AIModel, SessionID string) *AIHelper {
 	return &AIHelper{
-		model:    model_,
+		model:    aiModel,
 		messages: make([]*model.Message, 0),
 		//异步推送到消息队列中
 		saveFunc: func(msg *model.Message) (*model.Message, error) {
@@ -65,7 +65,7 @@ func (a *AIHelper) GetMessages() []*model.Message {
 }
 
 // 同步生成
-func (a *AIHelper) GenerateResponse(userName string, ctx context.Context, userQuestion string) (*model.Message, error) {
+func (a *AIHelper) GenerateResponse(ctx context.Context, userName string, userQuestion string) (*model.Message, error) {
 
 	//调用存储函数
 	a.AddMessage(userQuestion, userName, true, true)
@@ -92,7 +92,7 @@ func (a *AIHelper) GenerateResponse(userName string, ctx context.Context, userQu
 }
 
 // 流式生成
-func (a *AIHelper) StreamResponse(userName string, ctx context.Context, cb StreamCallback, userQuestion string) (*model.Message, error) {
+func (a *AIHelper) StreamResponse(ctx context.Context, userName string, cb StreamCallback, userQuestion string) (*model.Message, error) {
 
 	//调用存储函数
 	a.AddMessage(userQuestion, userName, true, true)

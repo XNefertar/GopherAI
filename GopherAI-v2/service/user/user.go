@@ -11,11 +11,11 @@ import (
 	"context"
 )
 
-func Login(username, password string) (string, code.Code) {
+func Login(ctx context.Context, username, password string) (string, code.Code) {
 	var userInformation *model.User
 	var ok bool
 	//1:判断用户是否存在
-	if ok, userInformation = user.IsExistUser(username); !ok {
+	if ok, userInformation = user.IsExistUser(ctx, username); !ok {
 
 		return "", code.CodeUserNotExist
 	}
@@ -38,7 +38,7 @@ func Register(ctx context.Context, email, password, captcha string) (string, cod
 	var userInformation *model.User
 
 	//1:先判断用户是否已经存在了
-	if ok, _ := user.IsExistUser(email); ok {
+	if ok, _ := user.IsExistUser(ctx, email); ok {
 		return "", code.CodeUserExist
 	}
 
@@ -51,12 +51,12 @@ func Register(ctx context.Context, email, password, captcha string) (string, cod
 	username := utils.GetRandomNumbers(11)
 
 	//4：注册到数据库中
-	if userInformation, ok = user.Register(username, email, password); !ok {
+	if userInformation, ok = user.Register(ctx, username, email, password); !ok {
 		return "", code.CodeServerBusy
 	}
 
 	//5：将账号一并发送到对应邮箱上去，后续需要账号登录
-	if err := myemail.SendCaptcha(email, username, user.UserNameMsg); err != nil {
+	if err := myemail.SendCaptcha(ctx, email, username, user.UserNameMsg); err != nil {
 		return "", code.CodeServerBusy
 	}
 
@@ -82,7 +82,7 @@ func SendCaptcha(ctx context.Context, email_ string) code.Code {
 	}
 
 	//2:再进行远程发送
-	if err := myemail.SendCaptcha(email_, send_code, myemail.CodeMsg); err != nil {
+	if err := myemail.SendCaptcha(ctx, email_, send_code, myemail.CodeMsg); err != nil {
 		return code.CodeServerBusy
 	}
 

@@ -2,6 +2,7 @@ package email
 
 import (
 	"GopherAI/config"
+	"context"
 	"fmt"
 
 	"gopkg.in/gomail.v2"
@@ -12,7 +13,7 @@ const (
 	UserNameMsg = "GopherAI的账号如下，请保留好，后续可以用账号/邮箱登录 "
 )
 
-func SendCaptcha(email, code, msg string) error {
+func SendCaptcha(ctx context.Context, email, code, msg string) error {
 	m := gomail.NewMessage()
 
 	// 发件人

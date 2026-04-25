@@ -8,6 +8,7 @@ import (
 	"GopherAI/config"
 	"GopherAI/dao/message"
 	"GopherAI/router"
+	"context"
 	"fmt"
 	"log"
 )
@@ -23,7 +24,7 @@ func StartServer(addr string, port int) error {
 func readDataFromDB() error {
 	manager := aihelper.GetGlobalManager()
 	// 从数据库读取所有消息
-	msgs, err := message.GetAllMessages()
+	msgs, err := message.GetAllMessages(context.Background())
 	if err != nil {
 		return err
 	}
@@ -39,7 +40,7 @@ func readDataFromDB() error {
 		}
 
 		// 创建对应的 AIHelper
-		helper, err := manager.GetOrCreateAIHelper(m.UserName, m.SessionID, opts)
+		helper, err := manager.GetOrCreateAIHelper(context.Background(), m.UserName, m.SessionID, opts)
 		if err != nil {
 			log.Printf("[readDataFromDB] failed to create helper for user=%s session=%s: %v", m.UserName, m.SessionID, err)
 			continue

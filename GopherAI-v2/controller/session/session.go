@@ -71,10 +71,10 @@ func CreateSessionAndSendMessage(c *gin.Context) {
 		return
 	}
 	//内部会创建会话并发送消息，并会将AI回答、当前会话返回
-	session_id, aiInformation, code_ := session.CreateSessionAndSendMessage(c.Request.Context(), userName, req.UserQuestion, req.ModelType)
+	session_id, aiInformation, statusCode := session.CreateSessionAndSendMessage(c.Request.Context(), userName, req.UserQuestion, req.ModelType)
 
-	if code_ != code.CodeSuccess {
-		c.JSON(http.StatusOK, res.CodeOf(code_))
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
 		return
 	}
 
@@ -100,8 +100,8 @@ func CreateStreamSessionAndSendMessage(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no") // 禁止代理缓存
 
 	// 先创建会话并立即把 sessionId 下发给前端，随后再开始流式输出
-	sessionID, code_ := session.CreateStreamSessionOnly(userName, req.UserQuestion)
-	if code_ != code.CodeSuccess {
+	sessionID, statusCode := session.CreateStreamSessionOnly(c.Request.Context(), userName, req.UserQuestion)
+	if statusCode != code.CodeSuccess {
 		c.SSEvent("error", gin.H{"message": "Failed to create session"})
 		return
 	}
@@ -111,8 +111,8 @@ func CreateStreamSessionAndSendMessage(c *gin.Context) {
 	c.Writer.Flush()
 
 	// 然后开始把本次回答进行流式发送（包含最后的 [DONE]）
-	code_ = session.StreamMessageToExistingSession(c.Request.Context(), userName, sessionID, req.UserQuestion, req.ModelType, http.ResponseWriter(c.Writer))
-	if code_ != code.CodeSuccess {
+	statusCode = session.StreamMessageToExistingSession(c.Request.Context(), userName, sessionID, req.UserQuestion, req.ModelType, http.ResponseWriter(c.Writer))
+	if statusCode != code.CodeSuccess {
 		c.SSEvent("error", gin.H{"message": "Failed to send message"})
 		return
 	}
@@ -127,10 +127,10 @@ func ChatSend(c *gin.Context) {
 		return
 	}
 	// 发送消息，并会将AI回答返回
-	aiInformation, code_ := session.ChatSend(c.Request.Context(), userName, req.SessionID, req.UserQuestion, req.ModelType)
+	aiInformation, statusCode := session.ChatSend(c.Request.Context(), userName, req.SessionID, req.UserQuestion, req.ModelType)
 
-	if code_ != code.CodeSuccess {
-		c.JSON(http.StatusOK, res.CodeOf(code_))
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
 		return
 	}
 
@@ -154,8 +154,9 @@ func ChatStreamSend(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("X-Accel-Buffering", "no") // 禁止代理缓存
 
-	code_ := session.ChatStreamSend(c.Request.Context(), userName, req.SessionID, req.UserQuestion, req.ModelType, http.ResponseWriter(c.Writer))
-	if code_ != code.CodeSuccess {
+	// 开始把本次回答进行流式发送（包含最后的 [DONE]）
+	statusCode := session.ChatStreamSend(c.Request.Context(), userName, req.SessionID, req.UserQuestion, req.ModelType, http.ResponseWriter(c.Writer))
+	if statusCode != code.CodeSuccess {
 		c.SSEvent("error", gin.H{"message": "Failed to send message"})
 		return
 	}
@@ -170,9 +171,9 @@ func ChatHistory(c *gin.Context) {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidParams))
 		return
 	}
-	history, code_ := session.GetChatHistory(userName, req.SessionID)
-	if code_ != code.CodeSuccess {
-		c.JSON(http.StatusOK, res.CodeOf(code_))
+	history, statusCode := session.GetChatHistory(userName, req.SessionID)
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
 		return
 	}
 

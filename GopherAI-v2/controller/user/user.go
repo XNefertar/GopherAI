@@ -51,9 +51,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	token, code_ := user.Login(req.Username, req.Password)
-	if code_ != code.CodeSuccess {
-		c.JSON(http.StatusOK, res.CodeOf(code_))
+	token, statusCode := user.Login(c.Request.Context(), req.Username, req.Password)
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
 		return
 	}
 
@@ -72,9 +72,9 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	token, code_ := user.Register(c.Request.Context(), req.Email, req.Password, req.Captcha)
-	if code_ != code.CodeSuccess {
-		c.JSON(http.StatusOK, res.CodeOf(code_))
+	token, statusCode := user.Register(c.Request.Context(), req.Email, req.Password, req.Captcha)
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
 		return
 	}
 
@@ -93,9 +93,9 @@ func HandleCaptcha(c *gin.Context) {
 	}
 
 	//给service层进行处理
-	code_ := user.SendCaptcha(c.Request.Context(), req.Email)
-	if code_ != code.CodeSuccess {
-		c.JSON(http.StatusOK, res.CodeOf(code_))
+	statusCode := user.SendCaptcha(c.Request.Context(), req.Email)
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
 		return
 	}
 	//匿名字段，其实本身res.Success()调用就是res.Response.Success()

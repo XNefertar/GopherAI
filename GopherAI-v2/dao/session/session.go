@@ -3,21 +3,22 @@ package session
 import (
 	"GopherAI/common/mysql"
 	"GopherAI/model"
+	"context"
 )
 
-func GetSessionsByUserName(UserName int64) ([]model.Session, error) {
+func GetSessionsByUserName(ctx context.Context, UserName int64) ([]model.Session, error) {
 	var sessions []model.Session
-	err := mysql.DB.Where("user_name = ?", UserName).Find(&sessions).Error
+	err := mysql.DB.WithContext(ctx).Where("user_name = ?", UserName).Find(&sessions).Error
 	return sessions, err
 }
 
-func CreateSession(session *model.Session) (*model.Session, error) {
-	err := mysql.DB.Create(session).Error
+func CreateSession(ctx context.Context, session *model.Session) (*model.Session, error) {
+	err := mysql.DB.WithContext(ctx).Create(session).Error
 	return session, err
 }
 
-func GetSessionByID(sessionID string) (*model.Session, error) {
+func GetSessionByID(ctx context.Context, sessionID string) (*model.Session, error) {
 	var session model.Session
-	err := mysql.DB.Where("id = ?", sessionID).First(&session).Error
+	err := mysql.DB.WithContext(ctx).Where("id = ?", sessionID).First(&session).Error
 	return &session, err
 }
