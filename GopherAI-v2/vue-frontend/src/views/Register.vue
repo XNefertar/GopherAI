@@ -128,6 +128,21 @@ export default {
       ]
     }
 
+    const getUsernameFromToken = (token) => {
+      if (!token) return ''
+      try {
+        const parts = token.split('.')
+        if (parts.length < 2) return ''
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+        const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+        const payload = JSON.parse(atob(normalized))
+        return payload.username || ''
+      } catch (error) {
+        console.error('Parse token error:', error)
+        return ''
+      }
+    }
+
     const sendCode = async () => {
       if (!registerForm.email) {
         ElMessage.warning('请先输入邮箱')
@@ -166,8 +181,13 @@ export default {
               password: registerForm.password
         })
         if (response.data.status_code === 1000) {
-          ElMessage.success('注册成功，请登录')
-          router.push('/login')
+          const token = response.data.token || ''
+          const username = getUsernameFromToken(token)
+          if (response.data.token) {
+            localStorage.setItem('token', token)
+          }
+          ElMessage.success(username ? `注册成功，账号名：${username}` : '注册成功，已自动登录')
+          router.push('/menu')
         } else {
           ElMessage.error(response.data.status_msg || '注册失败')
         }
