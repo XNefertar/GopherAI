@@ -34,7 +34,11 @@ type OpenAIModel struct {
 	llm model.ToolCallingChatModel
 }
 
-func NewOpenAIModel(ctx context.Context) (*OpenAIModel, error) {
+func NewOpenAIModel(ctx context.Context, opts CreateOptions) (*OpenAIModel, error) {
+	_, ok := opts.(OpenAIOptions)
+	if !ok {
+		return nil, fmt.Errorf("OpenAIOptions expected")
+	}
 	key := os.Getenv("OPENAI_API_KEY")
 	modelName := os.Getenv("OPENAI_MODEL_NAME")
 	baseURL := os.Getenv("OPENAI_BASE_URL")

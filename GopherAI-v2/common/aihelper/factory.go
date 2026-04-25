@@ -7,7 +7,7 @@ import (
 )
 
 // ModelCreator 定义模型创建函数类型（需要 context）
-type ModelCreator func(ctx context.Context, config map[string]interface{}) (AIModel, error)
+type ModelCreator func(ctx context.Context, opts CreateOptions) (AIModel, error)
 
 // AIModelFactory AI模型工厂
 type AIModelFactory struct {
@@ -33,56 +33,65 @@ func GetGlobalFactory() *AIModelFactory {
 // 注册模型
 func (f *AIModelFactory) registerCreators() {
 	//OpenAI
-	f.creators["1"] = func(ctx context.Context, config map[string]interface{}) (AIModel, error) {
-		return NewOpenAIModel(ctx)
+	f.creators["1"] = func(ctx context.Context, opts CreateOptions) (AIModel, error) {
+		return NewOpenAIModel(ctx, opts)
 	}
 
 	// 阿里百炼 RAG 模型
-	f.creators["2"] = func(ctx context.Context, config map[string]interface{}) (AIModel, error) {
-		username, ok := config["username"].(string)
+	f.creators["2"] = func(ctx context.Context, opts CreateOptions) (AIModel, error) {
+		aliRagOpts, ok := opts.(RAGOptions)
 		if !ok {
-			return nil, fmt.Errorf("RAG model requires username")
+			return nil, fmt.Errorf("RAG model expected RAGOptions")
 		}
+		username := aliRagOpts.Username
 		return NewAliRAGModel(ctx, username)
 	}
 
 	// MCP 模型（集成MCP服务）
-	f.creators["3"] = func(ctx context.Context, config map[string]interface{}) (AIModel, error) {
-		username, ok := config["username"].(string)
+	f.creators["3"] = func(ctx context.Context, opts CreateOptions) (AIModel, error) {
+		mcpOpts, ok := opts.(MCPOptions)
 		if !ok {
-			return nil, fmt.Errorf("MCP model requires username")
+			return nil, fmt.Errorf("MCP model expected MCPOptions")
 		}
+		username := mcpOpts.Username
 		return NewMCPModel(ctx, username)
 	}
 
 	//Ollama（目前提供接口实现，暂不提供应用，因为考虑到本地模型会占用很多空间）todo做
-	f.creators["4"] = func(ctx context.Context, config map[string]interface{}) (AIModel, error) {
-		baseURL, ok := config["baseURL"].(string)
+	f.creators["4"] = func(ctx context.Context, opts CreateOptions) (AIModel, error) {
+		ollamaOpts, ok := opts.(OllamaOptions)
 		if !ok {
-			return nil, fmt.Errorf("Ollama model requires baseURL")
+			return nil, fmt.Errorf("Ollama model expected OllamaOptions")
 		}
-		modelName, ok := config["modelName"].(string)
-		if !ok {
-			return nil, fmt.Errorf("Ollama model requires modelName")
+		baseURL := ollamaOpts.BaseURL
+		if baseURL == "" {
+			return nil, fmt.Errorf("Ollama model expected BaseURL")
+		}
+		modelName := ollamaOpts.ModelName
+		if modelName == "" {
+			return nil, fmt.Errorf("Ollama model expected ModelName")
 		}
 		return NewOllamaModel(ctx, baseURL, modelName)
 	}
-	// 阿里百炼 mcp 模型
-
+	// TODO: 阿里百炼 mcp 模型
 }
 
 // CreateAIModel 根据类型创建 AI 模型
-func (f *AIModelFactory) CreateAIModel(ctx context.Context, modelType string, config map[string]interface{}) (AIModel, error) {
+func (f *AIModelFactory) CreateAIModel(ctx context.Context, opts CreateOptions) (AIModel, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("create options is nil")
+	}
+	modelType := opts.ModelType()
 	creator, ok := f.creators[modelType]
 	if !ok {
 		return nil, fmt.Errorf("unsupported model type: %s", modelType)
 	}
-	return creator(ctx, config)
+	return creator(ctx, opts)
 }
 
 // CreateAIHelper 一键创建 AIHelper
-func (f *AIModelFactory) CreateAIHelper(ctx context.Context, modelType string, SessionID string, config map[string]interface{}) (*AIHelper, error) {
-	model, err := f.CreateAIModel(ctx, modelType, config)
+func (f *AIModelFactory) CreateAIHelper(ctx context.Context, SessionID string, opts CreateOptions) (*AIHelper, error) {
+	model, err := f.CreateAIModel(ctx, opts)
 	if err != nil {
 		return nil, err
 	}

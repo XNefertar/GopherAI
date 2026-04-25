@@ -2,6 +2,7 @@ package aihelper
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -21,9 +22,13 @@ func NewAIHelperManager() *AIHelperManager {
 }
 
 // 获取或创建AIHelper
-func (m *AIHelperManager) GetOrCreateAIHelper(userName string, sessionID string, modelType string, config map[string]interface{}) (*AIHelper, error) {
+func (m *AIHelperManager) GetOrCreateAIHelper(userName string, sessionID string, opts CreateOptions) (*AIHelper, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if opts == nil {
+		return nil, fmt.Errorf("create options is nil")
+	}
 
 	// 获取用户的会话映射
 	userHelpers, exists := m.helpers[userName]
@@ -36,10 +41,10 @@ func (m *AIHelperManager) GetOrCreateAIHelper(userName string, sessionID string,
 	helper, exists := userHelpers[sessionID]
 	factory := GetGlobalFactory()
 	if exists {
-		if helper.GetModelType() == modelType {
+		if helper.GetModelType() == opts.ModelType() {
 			return helper, nil
 		} else {
-			newModel, err := factory.CreateAIModel(ctx, modelType, config)
+			newModel, err := factory.CreateAIModel(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -49,7 +54,7 @@ func (m *AIHelperManager) GetOrCreateAIHelper(userName string, sessionID string,
 	}
 
 	// 创建新的AIHelper
-	helper, err := factory.CreateAIHelper(ctx, modelType, sessionID, config)
+	helper, err := factory.CreateAIHelper(ctx, sessionID, opts)
 	if err != nil {
 		return nil, err
 	}

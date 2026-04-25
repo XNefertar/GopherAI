@@ -45,11 +45,12 @@ func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuest
 
 	//2：获取AIHelper并通过其管理消息
 	manager := aihelper.GetGlobalManager()
-	config := map[string]interface{}{
-		"apiKey":   "your-api-key", // TODO: 从配置中获取
-		"username": userName,       // 用于 RAG 模型获取用户文档
+	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+	if err != nil {
+		log.Println("CreateSessionAndSendMessage BuildSessionCreateOptions error:", err)
+		return "", "", code.AIModelFail
 	}
-	helper, err := manager.GetOrCreateAIHelper(userName, createdSession.ID, modelType, config)
+	helper, err := manager.GetOrCreateAIHelper(userName, createdSession.ID, opts)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage GetOrCreateAIHelper error:", err)
 		return "", "", code.AIModelFail
@@ -88,11 +89,12 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 	}
 
 	manager := aihelper.GetGlobalManager()
-	config := map[string]interface{}{
-		"apiKey":   "your-api-key", // TODO: 从配置中获取
-		"username": userName,       // 用于 RAG 模型获取用户文档
+	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+	if err != nil {
+		log.Println("StreamMessageToExistingSession BuildSessionCreateOptions error:", err)
+		return code.AIModelFail
 	}
-	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, modelType, config)
+	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, opts)
 	if err != nil {
 		log.Println("StreamMessageToExistingSession GetOrCreateAIHelper error:", err)
 		return code.AIModelFail
@@ -146,10 +148,12 @@ func CreateStreamSessionAndSendMessage(ctx context.Context, userName string, use
 func ChatSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string) (string, code.Code) {
 	//1：获取AIHelper
 	manager := aihelper.GetGlobalManager()
-	config := map[string]interface{}{
-		"username": userName, // 用于 RAG 模型获取用户文档（若当前用户选择了RAG模型，该字段将会被用到）
+	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+	if err != nil {
+		log.Println("ChatSend BuildSessionCreateOptions error:", err)
+		return "", code.AIModelFail
 	}
-	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, modelType, config)
+	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, opts)
 	if err != nil {
 		log.Println("ChatSend GetOrCreateAIHelper error:", err)
 		return "", code.AIModelFail
