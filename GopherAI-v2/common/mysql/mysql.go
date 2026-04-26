@@ -65,6 +65,7 @@ func migration() error {
 		new(model.User),
 		new(model.Session),
 		new(model.Message),
+		new(model.MessageOutbox),
 	)
 }
 

@@ -8,6 +8,7 @@ import (
 	"GopherAI/config"
 	"GopherAI/dao/message"
 	"GopherAI/router"
+	outboxsvc "GopherAI/service/outbox"
 	"context"
 	"fmt"
 	"log"
@@ -72,6 +73,11 @@ func main() {
 	//初始化rabbitmq
 	rabbitmq.InitRabbitMQ()
 	log.Println("rabbitmq init success  ")
+
+	// 启动 Outbox worker：周期性扫描 outbox 表，将待投递消息可靠发送到 RabbitMQ。
+	// 这样即使应用曾经异常崩溃，重启后未完成投递的消息仍会被继续处理，
+	// 从而与下游消费者的幂等写库一起构成完整的"Outbox + MQ + 幂等消费"链路。
+	outboxsvc.NewDefaultWorker().Start()
 
 	err := StartServer(host, port) // 启动 HTTP 服务
 	if err != nil {

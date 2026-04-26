@@ -1,11 +1,13 @@
 package aihelper
 
 import (
-	"GopherAI/common/rabbitmq"
+	"GopherAI/dao/outbox"
 	"GopherAI/model"
 	"GopherAI/utils"
 	"context"
+	"log"
 	"sync"
+	"time"
 )
 
 // AIHelper AI助手结构体，包含消息历史和AI模型
@@ -23,11 +25,27 @@ func NewAIHelper(aiModel AIModel, SessionID string) *AIHelper {
 	return &AIHelper{
 		model:    aiModel,
 		messages: make([]*model.Message, 0),
-		//异步推送到消息队列中
+		// 采用 Outbox Pattern：
+		// 主链路不再直接把消息发送到 RabbitMQ，而是先把消息事务性地写入 outbox 表，
+		// 由后台 worker 负责可靠投递到 MQ，消费者再幂等写入 message 表。
+		// 即便应用或 MQ broker 崩溃，只要 outbox 记录存在，消息最终都能被重新投递。
 		saveFunc: func(msg *model.Message) (*model.Message, error) {
-			data := rabbitmq.GenerateMessageMQParam(msg.SessionID, msg.Content, msg.UserName, msg.IsUser)
-			err := rabbitmq.RMQMessage.Publish(data)
-			return msg, err
+			record := &model.MessageOutbox{
+				OutboxID:  utils.GenerateUUID(),
+				SessionID: msg.SessionID,
+				UserName:  msg.UserName,
+				Content:   msg.Content,
+				IsUser:    msg.IsUser,
+				Status:    model.OutboxStatusPending,
+				NextRunAt: time.Now(),
+			}
+			if err := outbox.CreateOutbox(context.Background(), record); err != nil {
+				log.Printf("[Outbox] enqueue failed, session=%s user=%s err=%v",
+					msg.SessionID, msg.UserName, err)
+				return msg, err
+			}
+			msg.OutboxID = record.OutboxID
+			return msg, nil
 		},
 		SessionID: SessionID,
 	}
