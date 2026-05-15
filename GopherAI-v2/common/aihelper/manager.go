@@ -112,6 +112,34 @@ func (m *AIHelperManager) GetUserSessions(userName string) []string {
 	return sessionIDs
 }
 
+// CountUserSessions 返回某个用户当前在内存中的会话数量，主要用于压测时校验造数是否成功。
+func (m *AIHelperManager) CountUserSessions(userName string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	userHelpers, exists := m.helpers[userName]
+	if !exists {
+		return 0
+	}
+
+	return len(userHelpers)
+}
+
+// SeedUserSessions 仅供压测使用：在内存中为指定用户预生成 count 个会话。
+// 每次调用都会重置该用户的会话映射，避免复用上一次压测的残留数据。
+func (m *AIHelperManager) SeedUserSessions(userName string, count int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	userHelpers := make(map[string]*AIHelper, count)
+	m.helpers[userName] = userHelpers
+
+	for i := 0; i < count; i++ {
+		sessionID := fmt.Sprintf("bench-session-%06d", i)
+		userHelpers[sessionID] = NewBenchmarkAIHelper(sessionID)
+	}
+}
+
 // 全局管理器实例
 var globalManager *AIHelperManager
 var once sync.Once
