@@ -1,0 +1,353 @@
+GopherAI-v2/common/aihelper/manager.go
+  9437e45f336601e3 115-142 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[115,142]}]}]}
+GopherAI-v2/cmd/gen-bench-token/main.go
+  9437e45f336601e3 1-17 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[1,17]}]}]}
+GopherAI-v2/main.go
+  9437e45f336601e3 14-15,25-74,114-133 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[14,15]},{"Range":[25,74]},{"Range":[114,133]}]}]}
+GopherAI-v2/router/bench.go
+  9437e45f336601e3 1-19 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[1,19]}]}]}
+GopherAI-v2/router/router.go
+  9437e45f336601e3 5,11-21,26 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Single":5},{"Range":[11,21]},{"Single":26}]}]}
+GopherAI-v2/common/aihelper/benchmark.go
+  9437e45f336601e3 1-41 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[1,41]}]}]}
+GopherAI-v2/controller/bench/bench.go
+  9437e45f336601e3 1-25 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[1,25]}]}]}
+GopherAI-v2/middleware/jwt/jwt.go
+  9437e45f336601e3 9,35-40 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Single":9},{"Range":[35,40]}]}]}
+GopherAI-v2/cmd/seed-bench-sessions/main.go
+  9437e45f336601e3 1-14 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a06e75d4ad4b862478dec4f","tool_type":"agent","tool_id":"Write","line_ranges":[{"Range":[1,14]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "02c0bf5d1f2aa72358dfea5d592ca97988defe18",
+  "prompts": {
+    "9437e45f336601e3": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "69ef2473979716ce5cccfa39",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "XNefertar <xnefertar@gmail.com>",
+      "messages": [],
+      "total_additions": 237,
+      "total_deletions": 15,
+      "accepted_lines": 237,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "GopherAI-v2/cmd/gen-bench-token/main.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              17
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  17
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/cmd/seed-bench-sessions/main.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              14
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  14
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/common/aihelper/benchmark.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              41
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  41
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/common/aihelper/manager.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              115,
+              142
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  115,
+                  142
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/controller/bench/bench.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              25
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  25
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/main.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              14,
+              15
+            ]
+          },
+          {
+            "Range": [
+              25,
+              74
+            ]
+          },
+          {
+            "Range": [
+              114,
+              133
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  14,
+                  15
+                ]
+              },
+              {
+                "Range": [
+                  25,
+                  74
+                ]
+              },
+              {
+                "Range": [
+                  114,
+                  133
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/middleware/jwt/jwt.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Single": 9
+          },
+          {
+            "Range": [
+              35,
+              40
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Single": 9
+              },
+              {
+                "Range": [
+                  35,
+                  40
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/router/bench.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              19
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  19
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "GopherAI-v2/router/router.go": [
+      {
+        "hash": "9437e45f336601e3",
+        "line_ranges": [
+          {
+            "Single": 5
+          },
+          {
+            "Range": [
+              11,
+              21
+            ]
+          },
+          {
+            "Single": 26
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a06e75d4ad4b862478dec4f",
+            "tool_type": "agent",
+            "tool_id": "Write",
+            "line_ranges": [
+              {
+                "Single": 5
+              },
+              {
+                "Range": [
+                  11,
+                  21
+                ]
+              },
+              {
+                "Single": 26
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "9437e45f336601e3": {
+      "tool": "trae",
+      "conversation_id": "69ef2473979716ce5cccfa39",
+      "session_id": "69ef2473979716ce5cccfa39",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
