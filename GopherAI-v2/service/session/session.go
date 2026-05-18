@@ -45,6 +45,22 @@ func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuest
 
 	//2：获取AIHelper并通过其管理消息
 	manager := aihelper.GetGlobalManager()
+
+	// modelType=auto 时走混合路由器：根据问题特征自动选择具体模型，实现成本优化。
+	if modelType == aihelper.ModelTypeAuto {
+		helper, _, err := manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, createdSession.ID, userQuestion, false)
+		if err != nil {
+			log.Println("CreateSessionAndSendMessage auto route error:", err)
+			return "", "", code.AIModelFail
+		}
+		aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
+		if err_ != nil {
+			log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
+			return "", "", code.AIModelFail
+		}
+		return createdSession.ID, aiResponse.Content, code.CodeSuccess
+	}
+
 	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage BuildSessionCreateOptions error:", err)
@@ -89,15 +105,27 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 	}
 
 	manager := aihelper.GetGlobalManager()
-	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
-	if err != nil {
-		log.Println("StreamMessageToExistingSession BuildSessionCreateOptions error:", err)
-		return code.AIModelFail
-	}
-	helper, err := manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
-	if err != nil {
-		log.Println("StreamMessageToExistingSession GetOrCreateAIHelper error:", err)
-		return code.AIModelFail
+
+	var helper *aihelper.AIHelper
+	if modelType == aihelper.ModelTypeAuto {
+		// modelType=auto 时走混合路由器
+		var err error
+		helper, _, err = manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, sessionID, userQuestion, true)
+		if err != nil {
+			log.Println("StreamMessageToExistingSession auto route error:", err)
+			return code.AIModelFail
+		}
+	} else {
+		opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+		if err != nil {
+			log.Println("StreamMessageToExistingSession BuildSessionCreateOptions error:", err)
+			return code.AIModelFail
+		}
+		helper, err = manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
+		if err != nil {
+			log.Println("StreamMessageToExistingSession GetOrCreateAIHelper error:", err)
+			return code.AIModelFail
+		}
 	}
 
 	cb := func(msg string) {
@@ -119,7 +147,7 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 		return code.AIModelFail
 	}
 
-	_, err = writer.Write([]byte("data: [DONE]\n\n"))
+	_, err := writer.Write([]byte("data: [DONE]\n\n"))
 	if err != nil {
 		log.Println("StreamMessageToExistingSession write DONE error:", err)
 		return code.AIModelFail
@@ -149,15 +177,27 @@ func CreateStreamSessionAndSendMessage(ctx context.Context, userName string, use
 func ChatSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string) (string, code.Code) {
 	//1：获取AIHelper
 	manager := aihelper.GetGlobalManager()
-	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
-	if err != nil {
-		log.Println("ChatSend BuildSessionCreateOptions error:", err)
-		return "", code.AIModelFail
-	}
-	helper, err := manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
-	if err != nil {
-		log.Println("ChatSend GetOrCreateAIHelper error:", err)
-		return "", code.AIModelFail
+
+	var helper *aihelper.AIHelper
+	if modelType == aihelper.ModelTypeAuto {
+		// modelType=auto 时走混合路由器
+		var err error
+		helper, _, err = manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, sessionID, userQuestion, false)
+		if err != nil {
+			log.Println("ChatSend auto route error:", err)
+			return "", code.AIModelFail
+		}
+	} else {
+		opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+		if err != nil {
+			log.Println("ChatSend BuildSessionCreateOptions error:", err)
+			return "", code.AIModelFail
+		}
+		helper, err = manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
+		if err != nil {
+			log.Println("ChatSend GetOrCreateAIHelper error:", err)
+			return "", code.AIModelFail
+		}
 	}
 
 	//2：生成AI回复
