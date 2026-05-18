@@ -3,6 +3,7 @@ package aihelper
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -122,4 +123,34 @@ func GetGlobalManager() *AIHelperManager {
 		globalManager = NewAIHelperManager()
 	})
 	return globalManager
+}
+
+// GetOrCreateAIHelperWithAutoRoute 在 modelType=auto 场景下，
+// 通过全局混合路由器先决策再走 GetOrCreateAIHelper 的统一入口。
+//
+// 该方法的好处：
+//  1. service 层无需关心“具体走哪个模型”，只需要把 auto 透传过来；
+//  2. 路由决策与创建/切换 helper 是一体的，便于后续统一埋点（命中率、升级率、成本）。
+//
+// 返回值除了 helper 之外，还会返回一次决策结果，便于上层做日志或链路追踪。
+func (m *AIHelperManager) GetOrCreateAIHelperWithAutoRoute(
+	ctx context.Context,
+	userName string,
+	sessionID string,
+	question string,
+	stream bool,
+) (*AIHelper, RouteDecision, error) {
+	router := GetGlobalRouter()
+	decision, err := router.Route(ctx, userName, sessionID, question, stream)
+	if err != nil {
+		return nil, RouteDecision{}, fmt.Errorf("hybrid router route failed: %w", err)
+	}
+	log.Printf("[router] user=%s session=%s reason=%s model=%s",
+		userName, sessionID, decision.Reason, decision.ModelType)
+
+	helper, err := m.GetOrCreateAIHelper(ctx, userName, sessionID, decision.Options)
+	if err != nil {
+		return nil, decision, err
+	}
+	return helper, decision, nil
 }

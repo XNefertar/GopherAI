@@ -10,6 +10,9 @@ const (
 	ModelTypeRAG    = "2"
 	ModelTypeMCP    = "3"
 	ModelTypeOllama = "4"
+	// ModelTypeAuto 表示由混合路由器根据请求特征自动选择具体模型，
+	// 主要用于成本优化场景：简单问题走低成本模型，复杂/知识/工具型问题走对应模型。
+	ModelTypeAuto = "auto"
 )
 
 type CreateOptions interface {
