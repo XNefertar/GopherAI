@@ -79,7 +79,7 @@ func splitTextIntoChunks(text string, chunkSize, overlap int) []string {
 // 构建知识库索引
 // 专业说法：文本解析、文本切块、向量化、存储向量
 // 通俗理解：把“人能读的文档”，转换成“AI 能按语义搜索的格式”，并存起来
-func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
+func NewRAGIndexer(kbID, embeddingModel string) (*RAGIndexer, error) {
 
 	// 用于控制整个初始化流程（超时 / 取消等），这里先用默认背景即可
 	ctx := context.Background()
@@ -112,7 +112,7 @@ func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
 	// ===============================
 	// 可以理解为：先在 Redis 里建好“仓库”，
 	// 告诉它以后要存向量，并且每个向量的维度是多少
-	if err := redisPkg.InitRedisIndex(ctx, filename, dimension); err != nil {
+	if err := redisPkg.InitRedisIndex(ctx, kbID, dimension); err != nil {
 		return nil, fmt.Errorf("failed to init redis index: %w", err)
 	}
 
@@ -123,32 +123,27 @@ func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
 	// 3. 配置索引器（定义：文档如何被存进 Redis）
 	// ===============================
 	indexerConfig := &redisIndexer.IndexerConfig{
-		Client:    rdb,                                     // Redis 客户端
-		KeyPrefix: redis.GenerateIndexNamePrefix(filename), // 不同知识库使用不同前缀，避免冲突
-		BatchSize: 10,                                      // 批量处理文档，提高写入效率
+		Client:    rdb,                                 // Redis 客户端
+		KeyPrefix: redis.GenerateIndexNamePrefix(kbID), // 不同知识库使用不同前缀，避免冲突
+		BatchSize: 10,                                  // 批量处理文档，提高写入效率
 
 		// 定义：一段文档（Document）在 Redis 中该如何存储
 		DocumentToHashes: func(ctx context.Context, doc *schema.Document) (*redisIndexer.Hashes, error) {
 
-			// 从文档的元数据中取出来源信息（例如文件名、URL）
 			source := ""
 			if s, ok := doc.MetaData["source"].(string); ok {
 				source = s
 			}
+			filename := ""
+			if f, ok := doc.MetaData["filename"].(string); ok {
+				filename = f
+			}
 
-			// 构造 Redis 中实际存储的数据结构（Hash）
 			return &redisIndexer.Hashes{
-				// Redis Key，一般由“知识库名 + 文档块 ID”组成
-				Key: fmt.Sprintf("%s:%s", filename, doc.ID),
-
-				// Redis Hash 中的字段
+				Key: fmt.Sprintf("%s:%s", kbID, doc.ID),
 				Field2Value: map[string]redisIndexer.FieldValue{
-					// content：原始文本内容
-					// EmbedKey 表示：该字段需要先做向量化，
-					// 生成的向量会存入名为 "vector" 的字段中
-					"content": {Value: doc.Content, EmbedKey: "vector"},
-
-					// metadata：一些辅助信息，不参与向量计算
+					"content":  {Value: doc.Content, EmbedKey: "vector"},
+					"filename": {Value: filename},
 					"metadata": {Value: source},
 				},
 			}, nil
@@ -217,11 +212,12 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 	return nil
 }
 
-// DeleteIndex 删除指定文件的知识库索引（静态方法，不依赖实例）
-func DeleteIndex(ctx context.Context, filename string) error {
-	if err := redisPkg.DeleteRedisIndex(ctx, filename); err != nil {
+// DeleteIndex 删除指定知识库的索引（静态方法，不依赖实例）
+func DeleteIndex(ctx context.Context, kbID string) error {
+	if err := redisPkg.DeleteRedisIndex(ctx, kbID); err != nil {
 		return fmt.Errorf("failed to delete redis index: %w", err)
 	}
+	// TODO: 可以添加清理同一 prefix 下 Hash Key 的逻辑
 	return nil
 }
 

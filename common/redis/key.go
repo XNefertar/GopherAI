@@ -10,12 +10,12 @@ func GenerateCaptcha(email string) string {
 	return fmt.Sprintf(config.DefaultRedisKeyConfig.CaptchaPrefix, email)
 }
 
-func GenerateIndexName(filename string) string {
-	indexName := fmt.Sprintf(config.DefaultRedisKeyConfig.IndexName, filename)
+func GenerateIndexName(kbID string) string {
+	indexName := fmt.Sprintf(config.DefaultRedisKeyConfig.IndexName, kbID)
 	return indexName
 }
 
-func GenerateIndexNamePrefix(filename string) string {
-	prefix := fmt.Sprintf(config.DefaultRedisKeyConfig.IndexNamePrefix, filename)
+func GenerateIndexNamePrefix(kbID string) string {
+	prefix := fmt.Sprintf(config.DefaultRedisKeyConfig.IndexNamePrefix, kbID)
 	return prefix
 }
