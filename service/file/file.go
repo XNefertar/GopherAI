@@ -28,26 +28,6 @@ func UploadRagFile(username string, file *multipart.FileHeader) (string, error) 
 		return "", err
 	}
 
-	// 遍历旧文件并删除其对应的 Redis 索引
-	files, err := os.ReadDir(userDir)
-	if err == nil {
-		for _, f := range files {
-			if !f.IsDir() {
-				filename := f.Name()
-				// 删除该文件对应的 Redis 索引
-				if err := rag.DeleteIndex(context.Background(), filename); err != nil {
-					log.Printf("Failed to delete index for %s: %v", filename, err)
-					// 继续执行，不因为索引删除失败而中断文件上传
-				}
-			}
-		}
-	}
-	// 删除用户目录中的所有文件
-	if err := utils.RemoveAllFilesInDir(userDir); err != nil {
-		log.Printf("Failed to clean user directory %s: %v", userDir, err)
-		return "", err
-	}
-
 	// 生成UUID作为唯一文件名
 	uuid := utils.GenerateUUID()
 
