@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	embeddingArk "github.com/cloudwego/eino-ext/components/embedding/ark"
@@ -79,10 +80,7 @@ func splitTextIntoChunks(text string, chunkSize, overlap int) []string {
 // 构建知识库索引
 // 专业说法：文本解析、文本切块、向量化、存储向量
 // 通俗理解：把“人能读的文档”，转换成“AI 能按语义搜索的格式”，并存起来
-func NewRAGIndexer(kbID, embeddingModel string) (*RAGIndexer, error) {
-
-	// 用于控制整个初始化流程（超时 / 取消等），这里先用默认背景即可
-	ctx := context.Background()
+func NewRAGIndexer(ctx context.Context, kbID, embeddingModel string) (*RAGIndexer, error) {
 
 	// 从环境变量中读取调用向量模型所需的 API Key
 	apiKey := os.Getenv("OPENAI_API_KEY")
@@ -138,12 +136,13 @@ func NewRAGIndexer(kbID, embeddingModel string) (*RAGIndexer, error) {
 			if f, ok := doc.MetaData["filename"].(string); ok {
 				filename = f
 			}
-
+			fileID, _ := doc.MetaData["file_id"].(string)
 			return &redisIndexer.Hashes{
-				Key: fmt.Sprintf("%s:%s", kbID, doc.ID),
+				Key: fmt.Sprintf("%s:%s:%s", kbID, fileID, doc.ID),
 				Field2Value: map[string]redisIndexer.FieldValue{
 					"content":  {Value: doc.Content, EmbedKey: "vector"},
 					"filename": {Value: filename},
+					"file_id":  {Value: fileID},
 					"metadata": {Value: source},
 				},
 			}, nil
@@ -174,7 +173,7 @@ func NewRAGIndexer(kbID, embeddingModel string) (*RAGIndexer, error) {
 }
 
 // IndexFile 读取文件内容并创建向量索引
-func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
+func (r *RAGIndexer) IndexFile(ctx context.Context, kbID, fileID, filePath string) error {
 	// 读取文件内容
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -198,6 +197,9 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 			Content: chunk,
 			MetaData: map[string]any{
 				"source":      filePath,
+				"filename":    filepath.Base(filePath),
+				"file_id":     fileID,
+				"kb_id":       kbID,
 				"chunk_index": i,
 			},
 		})
@@ -263,7 +265,7 @@ func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
 
 	// 创建 retriever
 	rdb := redisPkg.Rdb
-	indexName := redis.GenerateIndexName(filename)
+	indexName := redis.GenerateIndexName()
 
 	retrieverConfig := &redisRetriever.RetrieverConfig{
 		Client:       rdb,

@@ -117,6 +117,7 @@ func InitRedisIndex(ctx context.Context, kbID string, dimension int) error {
 		"PREFIX", "1", prefix,
 		"SCHEMA",
 		"content", "TEXT", // 用于倒排关键词搜索
+		"file_id", "TAG",
 		"filename", "TAG", // 用于正排过滤 (例如按文件名精确匹配过滤)
 		"vector", "VECTOR", "FLAT", // 用于向量最近邻召回
 		"6",
@@ -138,7 +139,11 @@ func DeleteRedisIndex(ctx context.Context, kbID string) error {
 	indexName := GenerateIndexName(kbID)
 
 	// 删除索引
-	if err := Rdb.Do(ctx, "FT.DROPINDEX", indexName).Err(); err != nil {
+	if err := Rdb.Do(ctx, "FT.DROPINDEX", indexName, "DD").Err(); err != nil {
+		if strings.Contains(err.Error(), "Unknown Index Name") ||
+			strings.Contains(err.Error(), "no such index") {
+			return nil
+		}
 		return fmt.Errorf("删除索引失败: %w", err)
 	}
 
