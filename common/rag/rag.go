@@ -265,7 +265,7 @@ func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
 
 	// 创建 retriever
 	rdb := redisPkg.Rdb
-	indexName := redis.GenerateIndexName()
+	indexName := redis.GenerateIndexName(username)
 
 	retrieverConfig := &redisRetriever.RetrieverConfig{
 		Client:       rdb,
