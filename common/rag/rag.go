@@ -173,11 +173,11 @@ func NewRAGIndexer(ctx context.Context, kbID, embeddingModel string) (*RAGIndexe
 }
 
 // IndexFile 读取文件内容并创建向量索引
-func (r *RAGIndexer) IndexFile(ctx context.Context, kbID, fileID, filePath string) error {
+func (r *RAGIndexer) IndexFile(ctx context.Context, kbID, fileID, filePath string) (int, error) {
 	// 读取文件内容
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
+		return 0, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	ragConfig := config.GetConfig().RagModelConfig
@@ -187,7 +187,7 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, kbID, fileID, filePath strin
 	// 将长文本切成多个片段，确保 TopK 检索能从多个候选片段中挑选结果。
 	chunks := splitTextIntoChunks(string(content), chunkSize, chunkOverlap)
 	if len(chunks) == 0 {
-		return fmt.Errorf("no valid content chunks found")
+		return 0, fmt.Errorf("no valid content chunks found")
 	}
 
 	docs := make([]*schema.Document, 0, len(chunks))
@@ -208,10 +208,10 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, kbID, fileID, filePath strin
 	// 使用 indexer 批量存储多个文档片段（会自动进行向量化）
 	_, err = r.indexer.Store(ctx, docs)
 	if err != nil {
-		return fmt.Errorf("failed to store document chunks: %w", err)
+		return 0, fmt.Errorf("failed to store documents: %w", err)
 	}
 
-	return nil
+	return len(chunks), nil
 }
 
 // DeleteIndex 删除指定知识库的索引（静态方法，不依赖实例）

@@ -27,12 +27,6 @@ func InitRouter() *gin.Engine {
 	}
 
 	{
-		FileGroup := enterRouter.Group("/file")
-		FileGroup.Use(jwt.Auth())
-		FileRouter(FileGroup)
-	}
-
-	{
 		KBGroup := enterRouter.Group("/kb")
 		KBGroup.Use(jwt.Auth())
 		KBRouter(KBGroup)
