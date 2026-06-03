@@ -3,6 +3,7 @@ package kb
 import (
 	"GopherAI/common/code"
 	"GopherAI/controller"
+	"GopherAI/model"
 	serviceKb "GopherAI/service/kb"
 	"log"
 	"net/http"
@@ -10,12 +11,29 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type (
+	CreateKBResponse struct {
+		controller.Response
+		KB *model.KnowledgeBase `json:"kb,omitempty"`
+	}
+
+	ListKBResponse struct {
+		controller.Response
+		KBs []model.KnowledgeBase `json:"kbs,omitempty"`
+	}
+
+	ListFilesResponse struct {
+		controller.Response
+		Files []model.KBFile `json:"files,omitempty"`
+	}
+)
+
 func CreateKB(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
 	}
-	res := new(controller.Response)
+	res := new(CreateKBResponse)
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidParams))
 		return
@@ -30,13 +48,13 @@ func CreateKB(c *gin.Context) {
 	}
 
 	res.Success()
-	res.Data = kb
+	res.KB = kb
 	c.JSON(http.StatusOK, res)
 }
 
 func ListKB(c *gin.Context) {
 	owner := c.GetString("userName")
-	res := new(controller.Response)
+	res := new(ListKBResponse)
 	kbs, err := serviceKb.ListKB(c.Request.Context(), owner)
 	if err != nil {
 		log.Printf("ListKB failed: %v", err)
@@ -45,7 +63,7 @@ func ListKB(c *gin.Context) {
 	}
 
 	res.Success()
-	res.Data = kbs
+	res.KBs = kbs
 	c.JSON(http.StatusOK, res)
 }
 
@@ -80,7 +98,7 @@ func AddFileToKB(c *gin.Context) {
 
 func ListFiles(c *gin.Context) {
 	kbID := c.Param("kbID")
-	res := new(controller.Response)
+	res := new(ListFilesResponse)
 
 	files, err := serviceKb.ListFiles(c.Request.Context(), kbID)
 	if err != nil {
@@ -90,7 +108,7 @@ func ListFiles(c *gin.Context) {
 	}
 
 	res.Success()
-	res.Data = files
+	res.Files = files
 	c.JSON(http.StatusOK, res)
 }
 
