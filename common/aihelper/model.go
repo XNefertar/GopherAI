@@ -146,9 +146,10 @@ func (o *OllamaModel) GetModelType() string { return "4" }
 type AliRAGModel struct {
 	llm      model.ToolCallingChatModel
 	username string // 用于获取用户的文档
+	kbID     string
 }
 
-func NewAliRAGModel(ctx context.Context, username string) (*AliRAGModel, error) {
+func NewAliRAGModel(ctx context.Context, username, kbID string) (*AliRAGModel, error) {
 	key := os.Getenv("OPENAI_API_KEY")
 	conf := config.GetConfig()
 	modelName := conf.RagModelConfig.RagChatModelName
@@ -165,12 +166,13 @@ func NewAliRAGModel(ctx context.Context, username string) (*AliRAGModel, error) 
 	return &AliRAGModel{
 		llm:      llm,
 		username: username,
+		kbID:     kbID,
 	}, nil
 }
 
 func (o *AliRAGModel) GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error) {
 	// 1. 创建 RAG 查询器
-	ragQuery, err := rag.NewRAGQuery(ctx, o.username)
+	ragQuery, err := rag.NewRAGQuery(ctx, o.kbID)
 	if err != nil {
 		log.Printf("Failed to create RAG query (user may not have uploaded file): %v", err)
 		// 如果用户没有上传文件，直接使用原始问题
@@ -221,7 +223,7 @@ func (o *AliRAGModel) GenerateResponse(ctx context.Context, messages []*schema.M
 
 func (o *AliRAGModel) StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
 	// 1. 创建 RAG 查询器
-	ragQuery, err := rag.NewRAGQuery(ctx, o.username)
+	ragQuery, err := rag.NewRAGQuery(ctx, o.kbID)
 	if err != nil {
 		log.Printf("Failed to create RAG query (user may not have uploaded file): %v", err)
 		// 如果用户没有上传文件，直接使用原始问题

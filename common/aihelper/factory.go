@@ -44,7 +44,8 @@ func (f *AIModelFactory) registerCreators() {
 			return nil, fmt.Errorf("RAG model expected RAGOptions")
 		}
 		username := aliRagOpts.Username
-		return NewAliRAGModel(ctx, username)
+		kbID := aliRagOpts.kbID
+		return NewAliRAGModel(ctx, username, kbID)
 	}
 
 	// MCP 模型（集成MCP服务）

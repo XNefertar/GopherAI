@@ -27,6 +27,7 @@ func (OpenAIOptions) ModelType() string {
 
 type RAGOptions struct {
 	Username string
+	kbID     string
 }
 
 func (RAGOptions) ModelType() string {
@@ -51,7 +52,7 @@ func (OllamaOptions) ModelType() string {
 }
 
 // BuildSessionCreateOptions maps request modelType to typed options used by the factory.
-func BuildSessionCreateOptions(modelType, userName string) (CreateOptions, error) {
+func BuildSessionCreateOptions(modelType, userName, kbID string) (CreateOptions, error) {
 	switch modelType {
 	case ModelTypeOpenAI:
 		return OpenAIOptions{}, nil
@@ -59,7 +60,13 @@ func BuildSessionCreateOptions(modelType, userName string) (CreateOptions, error
 		if userName == "" {
 			return nil, fmt.Errorf("RAG model requires userName")
 		}
-		return RAGOptions{Username: userName}, nil
+		if kbID == "" {
+			return nil, fmt.Errorf("RAG model requires kbID")
+		}
+		return RAGOptions{
+			Username: userName,
+			kbID:     kbID,
+		}, nil
 	case ModelTypeMCP:
 		if userName == "" {
 			return nil, fmt.Errorf("MCP model requires userName")

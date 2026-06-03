@@ -33,7 +33,7 @@ func readDataFromDB() error {
 		m := &msgs[i]
 		//默认openai模型
 		modelType := "1"
-		opts, err := aihelper.BuildSessionCreateOptions(modelType, m.UserName)
+		opts, err := aihelper.BuildSessionCreateOptions(modelType, m.UserName, "")
 		if err != nil {
 			log.Printf("[readDataFromDB] failed to build options for user=%s session=%s: %v", m.UserName, m.SessionID, err)
 			continue

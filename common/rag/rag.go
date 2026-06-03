@@ -224,7 +224,7 @@ func DeleteIndex(ctx context.Context, kbID string) error {
 }
 
 // NewRAGQuery 创建 RAG 查询器（用于向量检索和问答）
-func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
+func NewRAGQuery(ctx context.Context, kbID string) (*RAGQuery, error) {
 	cfg := config.GetConfig()
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	topK := cfg.RagModelConfig.RagTopK
@@ -243,29 +243,9 @@ func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
 		return nil, fmt.Errorf("failed to create embedder: %w", err)
 	}
 
-	// 获取用户上传的文件名（假设每个用户只有一个文件）
-	// 这里需要从用户目录读取文件名
-	userDir := fmt.Sprintf("uploads/%s", username)
-	files, err := os.ReadDir(userDir)
-	if err != nil || len(files) == 0 {
-		return nil, fmt.Errorf("no uploaded file found for user %s", username)
-	}
-
-	var filename string
-	for _, f := range files {
-		if !f.IsDir() {
-			filename = f.Name()
-			break
-		}
-	}
-
-	if filename == "" {
-		return nil, fmt.Errorf("no valid file found for user %s", username)
-	}
-
 	// 创建 retriever
 	rdb := redisPkg.Rdb
-	indexName := redis.GenerateIndexName(username)
+	indexName := redis.GenerateIndexName(kbID)
 
 	retrieverConfig := &redisRetriever.RetrieverConfig{
 		Client:       rdb,
