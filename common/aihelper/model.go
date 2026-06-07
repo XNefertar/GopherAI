@@ -143,14 +143,14 @@ func (o *OllamaModel) StreamResponse(ctx context.Context, messages []*schema.Mes
 func (o *OllamaModel) GetModelType() string { return "4" }
 
 // =================== RAG 实现 ===================
-type AliRAGModel struct {
+type ByteDanceRAGModel struct {
 	llm      model.ToolCallingChatModel
 	username string // 用于获取用户的文档
 	kbID     string
 }
 
-func NewAliRAGModel(ctx context.Context, username, kbID string) (*AliRAGModel, error) {
-	key := os.Getenv("OPENAI_API_KEY")
+func NewEmbeddingModel(ctx context.Context, username, kbID string) (*ByteDanceRAGModel, error) {
+	key := os.Getenv("ARK_API_KEY")
 	conf := config.GetConfig()
 	modelName := conf.RagModelConfig.RagChatModelName
 	baseURL := conf.RagModelConfig.RagBaseUrl
@@ -163,14 +163,14 @@ func NewAliRAGModel(ctx context.Context, username, kbID string) (*AliRAGModel, e
 	if err != nil {
 		return nil, fmt.Errorf("create ali rag model failed: %v", err)
 	}
-	return &AliRAGModel{
+	return &ByteDanceRAGModel{
 		llm:      llm,
 		username: username,
 		kbID:     kbID,
 	}, nil
 }
 
-func (o *AliRAGModel) GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error) {
+func (o *ByteDanceRAGModel) GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error) {
 	// 1. 创建 RAG 查询器
 	ragQuery, err := rag.NewRAGQuery(ctx, o.kbID)
 	if err != nil {
@@ -221,7 +221,7 @@ func (o *AliRAGModel) GenerateResponse(ctx context.Context, messages []*schema.M
 	return resp, nil
 }
 
-func (o *AliRAGModel) StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
+func (o *ByteDanceRAGModel) StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
 	// 1. 创建 RAG 查询器
 	ragQuery, err := rag.NewRAGQuery(ctx, o.kbID)
 	if err != nil {
@@ -283,7 +283,7 @@ func (o *AliRAGModel) StreamResponse(ctx context.Context, messages []*schema.Mes
 }
 
 // streamWithoutRAG 当没有 RAG 文档时的流式响应
-func (o *AliRAGModel) streamWithoutRAG(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
+func (o *ByteDanceRAGModel) streamWithoutRAG(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
 	stream, err := o.llm.Stream(ctx, messages)
 	if err != nil {
 		return "", fmt.Errorf("ali rag stream failed: %v", err)
@@ -309,7 +309,7 @@ func (o *AliRAGModel) streamWithoutRAG(ctx context.Context, messages []*schema.M
 	return fullResp.String(), nil
 }
 
-func (o *AliRAGModel) GetModelType() string { return "2" }
+func (o *ByteDanceRAGModel) GetModelType() string { return "2" }
 
 // =================== MCP 实现 ===================
 

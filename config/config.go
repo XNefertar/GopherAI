@@ -93,7 +93,7 @@ var config *Config
 // InitConfig 初始化项目配置
 func InitConfig() error {
 	// 设置配置文件路径（相对于 main.go 所在的目录）
-	if _, err := toml.DecodeFile("config/config.toml", config); err != nil {
+	if _, err := toml.DecodeFile("config/config.local.toml", config); err != nil {
 		log.Fatal(err.Error())
 		return err
 	}

@@ -102,7 +102,7 @@ func InitRedisIndex(ctx context.Context, kbID string, dimension int) error {
 	}
 
 	// 如果索引不存在，创建新索引
-	if !strings.Contains(err.Error(), "Unknown index name") {
+	if !strings.Contains(err.Error(), "Unknown index name") && !strings.Contains(err.Error(), "Index not found") {
 		return fmt.Errorf("检查索引失败: %w", err)
 	}
 
