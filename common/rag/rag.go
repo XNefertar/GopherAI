@@ -219,8 +219,11 @@ func getRAGEmbeddingAPIType() *embeddingArk.APIType {
 	raw := strings.ToLower(strings.TrimSpace(config.GetConfig().RagModelConfig.RagEmbeddingAPIType))
 
 	switch raw {
-	case "multimodel", "multi_modal", "multi-modal":
+	case "multimodal", "multi_modal", "multi-modal":
 		t := embeddingArk.APITypeMultiModal
+		return &t
+	case "text", "text_api":
+		t := embeddingArk.APITypeText
 		return &t
 	default:
 		t := embeddingArk.APITypeText
