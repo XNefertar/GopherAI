@@ -45,7 +45,7 @@ func (f *AIModelFactory) registerCreators() {
 		}
 		username := embeddingRagOpts.Username
 		kbID := embeddingRagOpts.kbID
-		return NewEmbeddingModel(ctx, username, kbID)
+		return NewRagModel(ctx, username, kbID)
 	}
 
 	// MCP 模型（集成MCP服务）

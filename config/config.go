@@ -50,14 +50,14 @@ type Rabbitmq struct {
 }
 
 type RagModelConfig struct {
-	RagEmbeddingModel string `toml:"embeddingModel"`
-	RagChatModelName  string `toml:"chatModelName"`
-	RagDocDir         string `toml:"docDir"`
-	RagBaseUrl        string `toml:"baseUrl"`
-	RagDimension      int    `toml:"dimension"`
-	RagChunkSize      int    `toml:"chunkSize"`
-	RagChunkOverlap   int    `toml:"chunkOverlap"`
-	RagTopK           int    `toml:"topK"`
+	RagEmbeddingModel   string `toml:"embeddingModel"`
+	RagEmbeddingBaseURL string `toml:"embeddingBaseUrl"`
+	RagEmbeddingAPIType string `toml:"embeddingApiType"`
+	RagDocDir           string `toml:"docDir"`
+	RagDimension        int    `toml:"dimension"`
+	RagChunkSize        int    `toml:"chunkSize"`
+	RagChunkOverlap     int    `toml:"chunkOverlap"`
+	RagTopK             int    `toml:"topK"`
 }
 
 type VoiceServiceConfig struct {

@@ -2,7 +2,6 @@ package aihelper
 
 import (
 	"GopherAI/common/rag"
-	"GopherAI/config"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -39,18 +38,12 @@ func NewOpenAIModel(ctx context.Context, opts CreateOptions) (*OpenAIModel, erro
 	if !ok {
 		return nil, fmt.Errorf("OpenAIOptions expected")
 	}
-	key := os.Getenv("OPENAI_API_KEY")
-	modelName := os.Getenv("OPENAI_MODEL_NAME")
-	baseURL := os.Getenv("OPENAI_BASE_URL")
 
-	llm, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		BaseURL: baseURL,
-		Model:   modelName,
-		APIKey:  key,
-	})
+	llm, err := newMainChatLLM(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("create openai model failed: %v", err)
+		return nil, err
 	}
+
 	return &OpenAIModel{llm: llm}, nil
 }
 
@@ -143,17 +136,26 @@ func (o *OllamaModel) StreamResponse(ctx context.Context, messages []*schema.Mes
 func (o *OllamaModel) GetModelType() string { return "4" }
 
 // =================== RAG 实现 ===================
-type ByteDanceRAGModel struct {
+type RAGModel struct {
 	llm      model.ToolCallingChatModel
 	username string // 用于获取用户的文档
 	kbID     string
 }
 
-func NewEmbeddingModel(ctx context.Context, username, kbID string) (*ByteDanceRAGModel, error) {
-	key := os.Getenv("ARK_API_KEY")
-	conf := config.GetConfig()
-	modelName := conf.RagModelConfig.RagChatModelName
-	baseURL := conf.RagModelConfig.RagBaseUrl
+func newMainChatLLM(ctx context.Context) (model.ToolCallingChatModel, error) {
+	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	modelName := strings.TrimSpace(os.Getenv("OPENAI_MODEL_NAME"))
+	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+
+	if key == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY is empty")
+	}
+	if modelName == "" {
+		return nil, fmt.Errorf("OPENAI_MODEL_NAME is empty")
+	}
+	if baseURL == "" {
+		return nil, fmt.Errorf("OPENAI_BASE_URL is empty")
+	}
 
 	llm, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		BaseURL: baseURL,
@@ -161,16 +163,25 @@ func NewEmbeddingModel(ctx context.Context, username, kbID string) (*ByteDanceRA
 		APIKey:  key,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create ali rag model failed: %v", err)
+		return nil, fmt.Errorf("create main chat model failed: %v", err)
 	}
-	return &ByteDanceRAGModel{
+	return llm, nil
+}
+
+func NewRagModel(ctx context.Context, username, kbID string) (*RAGModel, error) {
+	llm, err := newMainChatLLM(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("create rag chat model failed: %v", err)
+	}
+
+	return &RAGModel{
 		llm:      llm,
 		username: username,
 		kbID:     kbID,
 	}, nil
 }
 
-func (o *ByteDanceRAGModel) GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error) {
+func (o *RAGModel) GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error) {
 	// 1. 创建 RAG 查询器
 	ragQuery, err := rag.NewRAGQuery(ctx, o.kbID)
 	if err != nil {
@@ -221,7 +232,7 @@ func (o *ByteDanceRAGModel) GenerateResponse(ctx context.Context, messages []*sc
 	return resp, nil
 }
 
-func (o *ByteDanceRAGModel) StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
+func (o *RAGModel) StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
 	// 1. 创建 RAG 查询器
 	ragQuery, err := rag.NewRAGQuery(ctx, o.kbID)
 	if err != nil {
@@ -283,7 +294,7 @@ func (o *ByteDanceRAGModel) StreamResponse(ctx context.Context, messages []*sche
 }
 
 // streamWithoutRAG 当没有 RAG 文档时的流式响应
-func (o *ByteDanceRAGModel) streamWithoutRAG(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
+func (o *RAGModel) streamWithoutRAG(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
 	stream, err := o.llm.Stream(ctx, messages)
 	if err != nil {
 		return "", fmt.Errorf("ali rag stream failed: %v", err)
@@ -309,7 +320,7 @@ func (o *ByteDanceRAGModel) streamWithoutRAG(ctx context.Context, messages []*sc
 	return fullResp.String(), nil
 }
 
-func (o *ByteDanceRAGModel) GetModelType() string { return "2" }
+func (o *RAGModel) GetModelType() string { return "2" }
 
 // =================== MCP 实现 ===================
 
@@ -323,17 +334,7 @@ type MCPModel struct {
 
 // NewMCPModel 创建MCP模型实例
 func NewMCPModel(ctx context.Context, username string) (*MCPModel, error) {
-	key := os.Getenv("OPENAI_API_KEY")
-	conf := config.GetConfig()
-	modelName := conf.RagModelConfig.RagChatModelName
-	baseURL := conf.RagModelConfig.RagBaseUrl
-
-	// 创建LLM
-	llm, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		BaseURL: baseURL,
-		Model:   modelName,
-		APIKey:  key,
-	})
+	llm, err := newMainChatLLM(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("create mcp model failed: %v", err)
 	}

@@ -81,30 +81,14 @@ func splitTextIntoChunks(text string, chunkSize, overlap int) []string {
 // 专业说法：文本解析、文本切块、向量化、存储向量
 // 通俗理解：把“人能读的文档”，转换成“AI 能按语义搜索的格式”，并存起来
 func NewRAGIndexer(ctx context.Context, kbID, embeddingModel string) (*RAGIndexer, error) {
-
-	// 从环境变量中读取调用向量模型所需的 API Key
-	apiKey := os.Getenv("OPENAI_API_KEY")
-
 	// 向量的维度大小（等于向量模型输出的数字个数）
 	// Redis 在创建向量索引时必须提前知道这个值
 	dimension := config.GetConfig().RagModelConfig.RagDimension
 
-	// 1. 配置并创建“向量生成器”（Embedding）
-	// 可以理解为：找一个“翻译官”，
-	// 专门负责把文本翻译成 AI 能理解的“向量表示”
-	embedConfig := &embeddingArk.EmbeddingConfig{
-		BaseURL: config.GetConfig().RagModelConfig.RagBaseUrl, // 向量模型服务地址
-		APIKey:  apiKey,                                       // 鉴权信息
-		Model:   embeddingModel,                               // 使用哪个向量模型
-	}
-
-	// 创建向量生成器实例
-	// 后续所有文本的“向量化”都会通过它完成
-	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	embedder, err := newRAGEmbedder(ctx, embeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create embedder: %w", err)
+		return nil, err
 	}
-
 	// ===============================
 	// 2. 初始化 Redis 中的向量索引结构
 	// ===============================
@@ -127,7 +111,6 @@ func NewRAGIndexer(ctx context.Context, kbID, embeddingModel string) (*RAGIndexe
 
 		// 定义：一段文档（Document）在 Redis 中该如何存储
 		DocumentToHashes: func(ctx context.Context, doc *schema.Document) (*redisIndexer.Hashes, error) {
-
 			source := ""
 			if s, ok := doc.MetaData["source"].(string); ok {
 				source = s
@@ -223,22 +206,64 @@ func DeleteIndex(ctx context.Context, kbID string) error {
 	return nil
 }
 
+func getRAGEmbeddingAPIKey() string {
+	for _, key := range []string{"RAG_EMBEDDING_API_KEY", "RAG_API_KEY"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func getRAGEmbeddingAPIType() *embeddingArk.APIType {
+	raw := strings.ToLower(strings.TrimSpace(config.GetConfig().RagModelConfig.RagEmbeddingAPIType))
+
+	switch raw {
+	case "multimodel", "multi_modal", "multi-modal":
+		t := embeddingArk.APITypeMultiModal
+		return &t
+	default:
+		t := embeddingArk.APITypeText
+		return &t
+	}
+}
+
+func newRAGEmbedder(ctx context.Context, modelName string) (embedding.Embedder, error) {
+	cfg := config.GetConfig().RagModelConfig
+	apiKey := getRAGEmbeddingAPIKey()
+	if apiKey == "" {
+		return nil, fmt.Errorf("RAG_EMBEDDING_API_KEY is empty")
+	}
+	if strings.TrimSpace(cfg.RagEmbeddingBaseURL) == "" {
+		return nil, fmt.Errorf("rag embedding base url is empty")
+	}
+	if strings.TrimSpace(modelName) == "" {
+		return nil, fmt.Errorf("rag embedding model is empty")
+	}
+
+	embedConfig := &embeddingArk.EmbeddingConfig{
+		BaseURL: cfg.RagEmbeddingBaseURL,
+		APIKey:  apiKey,
+		Model:   modelName,
+		APIType: getRAGEmbeddingAPIType(),
+	}
+
+	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rag embedder: %w", err)
+	}
+	return embedder, err
+}
+
 // NewRAGQuery 创建 RAG 查询器（用于向量检索和问答）
 func NewRAGQuery(ctx context.Context, kbID string) (*RAGQuery, error) {
 	cfg := config.GetConfig()
-	apiKey := os.Getenv("OPENAI_API_KEY")
 	topK := cfg.RagModelConfig.RagTopK
 	if topK <= 0 {
 		topK = defaultTopK
 	}
 
-	// 创建 embedding 模型
-	embedConfig := &embeddingArk.EmbeddingConfig{
-		BaseURL: cfg.RagModelConfig.RagBaseUrl,
-		APIKey:  apiKey,
-		Model:   cfg.RagModelConfig.RagEmbeddingModel,
-	}
-	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	embedder, err := newRAGEmbedder(ctx, cfg.RagModelConfig.RagEmbeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embedder: %w", err)
 	}
