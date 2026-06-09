@@ -12,12 +12,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	GetUserSessionsResponse struct {
-		controller.Response
-		Sessions []model.SessionInfo `json:"sessions,omitempty"`
-	}
-	CreateSessionAndSendMessageRequest struct {
+	type (
+		GetUserSessionsResponse struct {
+			controller.Response
+			Sessions []model.SessionInfo `json:"sessions,omitempty"`
+		}
+		GetChatModelsResponse struct {
+			controller.Response
+			DefaultModelType string                     `json:"defaultModelType,omitempty"`
+			Models           []aihelper.ModelDescriptor `json:"models,omitempty"`
+		}
+		CreateSessionAndSendMessageRequest struct {
+
 		UserQuestion string `json:"question" binding:"required"`  // 用户问题;
 		ModelType    string `json:"modelType" binding:"required"` // 模型类型;
 		KBID         string `json:"kbID,omitempty"`
@@ -61,6 +67,14 @@ func GetUserSessionsByUserName(c *gin.Context) {
 
 	res.Success()
 	res.Sessions = userSessions
+	c.JSON(http.StatusOK, res)
+}
+
+func GetChatModels(c *gin.Context) {
+	res := new(GetChatModelsResponse)
+	res.Success()
+	res.DefaultModelType = aihelper.GetDefaultModelType()
+	res.Models = aihelper.ListModelDescriptors()
 	c.JSON(http.StatusOK, res)
 }
 

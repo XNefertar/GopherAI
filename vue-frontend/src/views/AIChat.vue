@@ -24,13 +24,27 @@
         <button class="back-btn" @click="$router.push('/menu')">← 返回</button>
         <button class="sync-btn" @click="syncHistory" :disabled="!currentSessionId || tempSession">同步历史数据</button>
         <label for="modelType">选择模型：</label>
-        <select id="modelType" v-model="selectedModel" class="model-select">
-          <option value="1">阿里百炼</option>
-          <option value="2">阿里百炼 RAG</option>
-          <option value="3">阿里百炼 MCP</option>
+        <select
+          id="modelType"
+          v-model="selectedModel"
+          class="model-select"
+          :disabled="modelLoading || !modelOptions.length"
+          @change="handleModelChange"
+        >
+          <option v-if="modelLoading" value="" disabled>模型加载中...</option>
+          <option v-else-if="!modelOptions.length" value="" disabled>暂无模型</option>
+          <option
+            v-for="model in modelOptions"
+            :key="model.type"
+            :value="model.type"
+            :disabled="!model.available"
+          >
+            {{ model.available ? model.label : `${model.label}（${model.disabledReason || '当前不可用'}）` }}
+          </option>
         </select>
-        <label for="streamingMode" style="margin-left: 8px;">
-          <input type="checkbox" id="streamingMode" v-model="isStreaming" />
+        <span v-if="selectedModelMeta" class="model-hint">{{ selectedModelMeta.description }}</span>
+        <label for="streamingMode" style="margin-left: 8px;" :title="supportsStreaming ? '' : '当前模型不支持流式响应'">
+          <input type="checkbox" id="streamingMode" v-model="isStreaming" :disabled="!supportsStreaming" />
           流式响应
         </label>
         <div class="kb-toolbar">
@@ -57,10 +71,10 @@
       <div class="kb-panel">
         <div class="kb-panel-header">
           <span>知识库管理</span>
-          <span class="kb-panel-tip">RAG 新会话会绑定当前选中的知识库</span>
+          <span class="kb-panel-tip">{{ kbPanelTip }}</span>
         </div>
         <div v-if="!kbList.length" class="kb-empty-text">暂无知识库，请先新建知识库。</div>
-        <div v-else-if="!selectedKBId" class="kb-empty-text">请选择一个知识库后再上传文档或发起 RAG 对话。</div>
+        <div v-else-if="!selectedKBId" class="kb-empty-text">请选择一个知识库后再上传文档或发起依赖知识库的对话。</div>
         <template v-else>
           <div class="kb-selected-name">当前知识库：{{ selectedKBName }}</div>
           <div class="kb-file-list">
@@ -133,7 +147,9 @@ export default {
     const loading = ref(false)
     const messagesRef = ref(null)
     const messageInput = ref(null)
-    const selectedModel = ref('1')
+    const selectedModel = ref('')
+    const modelOptions = ref([])
+    const modelLoading = ref(false)
     const isStreaming = ref(false)
     const uploading = ref(false)
     const fileInput = ref(null)
@@ -143,7 +159,14 @@ export default {
     const kbLoading = ref(false)
     const kbFileLoading = ref(false)
 
-    const isRAGModel = computed(() => selectedModel.value === '2')
+    const selectedModelMeta = computed(() => modelOptions.value.find(model => model.type === selectedModel.value) || null)
+    const requiresKB = computed(() => Boolean(selectedModelMeta.value?.requiresKB))
+    const supportsStreaming = computed(() => Boolean(selectedModelMeta.value?.supportsStream))
+    const kbPanelTip = computed(() => (
+      requiresKB.value
+        ? '当前模型新会话会绑定当前选中的知识库'
+        : '可先维护知识库，切换到知识库问答模型后再使用'
+    ))
     const selectedKBName = computed(() => {
       const currentKB = kbList.value.find(kb => kb.id === selectedKBId.value)
       return currentKB ? currentKB.name : '未选择知识库'
@@ -154,6 +177,71 @@ export default {
       name: kb?.name || kb?.Name || '未命名知识库',
       description: kb?.description || kb?.Description || ''
     })
+
+    const normalizeModelOption = (model) => ({
+      type: String(model?.type || ''),
+      key: model?.key || '',
+      label: model?.label || '未命名模型',
+      description: model?.description || '',
+      requiresKB: Boolean(model?.requiresKB),
+      supportsStream: model?.supportsStream !== false,
+      available: model?.available !== false,
+      disabledReason: model?.disabledReason || '',
+      isDefault: Boolean(model?.isDefault),
+      sort: Number(model?.sort ?? 0)
+    })
+
+    const pickModelType = (models, preferredType, defaultType) => {
+      const normalizedPreferredType = String(preferredType || '')
+      const normalizedDefaultType = String(defaultType || '')
+      const candidates = [
+        models.find(model => model.type === normalizedPreferredType && model.available),
+        models.find(model => model.type === normalizedDefaultType && model.available),
+        models.find(model => model.isDefault && model.available),
+        models.find(model => model.available),
+        models[0]
+      ]
+      return candidates.find(Boolean)?.type || ''
+    }
+
+    const handleModelChange = () => {
+      if (!supportsStreaming.value) {
+        isStreaming.value = false
+      }
+    }
+
+    const loadModelOptions = async (silent = false) => {
+      modelLoading.value = true
+      try {
+        const response = await api.get('/AI/chat/models')
+        if (response.data && response.data.status_code === 1000 && Array.isArray(response.data.models)) {
+          const list = response.data.models
+            .map(normalizeModelOption)
+            .filter(model => model.type)
+            .sort((a, b) => a.sort - b.sort)
+
+          modelOptions.value = list
+          selectedModel.value = pickModelType(list, selectedModel.value, response.data.defaultModelType)
+          handleModelChange()
+
+          if (!silent && !list.some(model => model.available)) {
+            ElMessage.warning('当前没有可用模型，请检查后端模型配置')
+          }
+          return
+        }
+        throw new Error(response.data?.status_msg || 'load models failed')
+      } catch (error) {
+        console.error('Load models error:', error)
+        modelOptions.value = []
+        selectedModel.value = ''
+        isStreaming.value = false
+        if (!silent) {
+          ElMessage.error('加载模型列表失败')
+        }
+      } finally {
+        modelLoading.value = false
+      }
+    }
 
     const normalizeKBFile = (file) => ({
       id: String(file?.id || file?.ID || ''),
@@ -290,8 +378,12 @@ export default {
     }
 
     const requireKBForNewRAGSession = () => {
-      if (tempSession.value && isRAGModel.value && !selectedKBId.value) {
-        ElMessage.warning('请先选择知识库，再发起 RAG 对话')
+      if (!selectedModel.value) {
+        ElMessage.warning('请先选择可用模型')
+        return false
+      }
+      if (tempSession.value && requiresKB.value && !selectedKBId.value) {
+        ElMessage.warning('请先选择知识库，再发起当前模型会话')
         return false
       }
       return true
@@ -535,7 +627,7 @@ export default {
         ? {
             question: question,
             modelType: selectedModel.value,
-            ...(isRAGModel.value ? { kbID: selectedKBId.value } : {})
+            ...(requiresKB.value ? { kbID: selectedKBId.value } : {})
           }
         : { question: question, modelType: selectedModel.value, sessionId: currentSessionId.value }
 
@@ -658,7 +750,7 @@ export default {
         const response = await api.post('/AI/chat/send-new-session', {
           question: question,
           modelType: selectedModel.value,
-          ...(isRAGModel.value ? { kbID: selectedKBId.value } : {})
+          ...(requiresKB.value ? { kbID: selectedKBId.value } : {})
         })
         if (response.data && response.data.status_code === 1000) {
           const sessionId = String(response.data.sessionId)
@@ -775,6 +867,7 @@ export default {
 
     onMounted(async () => {
       await Promise.all([
+        loadModelOptions(),
         loadSessions(),
         loadKnowledgeBases(true)
       ])
@@ -790,6 +883,9 @@ export default {
       messagesRef,
       messageInput,
       selectedModel,
+      selectedModelMeta,
+      modelOptions,
+      modelLoading,
       isStreaming,
       uploading,
       fileInput,
@@ -799,12 +895,15 @@ export default {
       kbFiles,
       kbLoading,
       kbFileLoading,
+      supportsStreaming,
+      kbPanelTip,
       renderMarkdown,
       playTTS,
       createNewSession,
       switchSession,
       syncHistory,
       sendMessage,
+      handleModelChange,
       triggerFileUpload,
       handleFileUpload,
       handleKBChange,
@@ -1124,6 +1223,19 @@ export default {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.model-select:disabled {
+  background: #f5f7fa;
+  color: #a0a8b0;
+  cursor: not-allowed;
+}
+
+.model-hint {
+  max-width: 280px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .upload-btn {
