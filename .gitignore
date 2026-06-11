@@ -57,3 +57,6 @@ graphify-out/
 
 # trae
 .trae
+
+# uploads
+**/uploads/*

@@ -3,10 +3,10 @@ package session
 import (
 	"GopherAI/common/aihelper"
 	"GopherAI/common/code"
+	"GopherAI/common/logger"
 	"GopherAI/dao/session"
 	"GopherAI/model"
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -30,16 +30,38 @@ func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
 	return SessionInfos, nil
 }
 
+<<<<<<< Updated upstream
+func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuestion, modelType string) (string, string, code.Code) {
+	//1：创建一个新的会话
+	newSession := &model.Session{
+		ID:         uuid.New().String(),
+		UserName:   userName,
+		Title:      userQuestion, // 可以根据需求设置标题，这边暂时用用户第一次的问题作为标题
+		ActiveKBID: kbID,
+=======
+<<<<<<< Updated upstream
 func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuestion string, modelType string) (string, string, code.Code) {
 	//1：创建一个新的会话
 	newSession := &model.Session{
 		ID:       uuid.New().String(),
 		UserName: userName,
 		Title:    userQuestion, // 可以根据需求设置标题，这边暂时用用户第一次的问题作为标题
+=======
+func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuestion, modelType string) (string, string, code.Code) {
+	sessionID := uuid.New().String()
+	l := logger.With("userName", userName, "kbID", kbID, "sessionID", sessionID)
+	//1：创建一个新的会话
+	newSession := &model.Session{
+		ID:         sessionID,
+		UserName:   userName,
+		Title:      userQuestion, // 可以根据需求设置标题，这边暂时用用户第一次的问题作为标题
+		ActiveKBID: kbID,
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 	}
 	createdSession, err := session.CreateSession(ctx, newSession)
 	if err != nil {
-		log.Println("CreateSessionAndSendMessage CreateSession error:", err)
+		l.Error("CreateSession failed", "error", err)
 		return "", "", code.CodeServerBusy
 	}
 
@@ -50,61 +72,99 @@ func CreateSessionAndSendMessage(ctx context.Context, userName string, userQuest
 	if modelType == aihelper.ModelTypeAuto {
 		helper, _, err := manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, createdSession.ID, userQuestion, false)
 		if err != nil {
-			log.Println("CreateSessionAndSendMessage auto route error:", err)
+			l.Error("auto route failed", "error", err)
 			return "", "", code.AIModelFail
 		}
 		aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
 		if err_ != nil {
-			log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
+			l.Error("GenerateResponse failed", "error", err_)
 			return "", "", code.AIModelFail
 		}
 		return createdSession.ID, aiResponse.Content, code.CodeSuccess
 	}
 
-	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName, createdSession.ActiveKBID)
 	if err != nil {
-		log.Println("CreateSessionAndSendMessage BuildSessionCreateOptions error:", err)
+		l.Error("BuildSessionCreateOptions failed", "error", err)
 		return "", "", code.AIModelFail
 	}
 	helper, err := manager.GetOrCreateAIHelper(ctx, userName, createdSession.ID, opts)
 	if err != nil {
-		log.Println("CreateSessionAndSendMessage GetOrCreateAIHelper error:", err)
+		l.Error("GetOrCreateAIHelper failed", "error", err)
 		return "", "", code.AIModelFail
 	}
 
 	//3：生成AI回复
 	aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
 	if err_ != nil {
-		log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
+		l.Error("GenerateResponse failed", "error", err_)
 		return "", "", code.AIModelFail
 	}
 
 	return createdSession.ID, aiResponse.Content, code.CodeSuccess
 }
 
+<<<<<<< Updated upstream
+func CreateStreamSessionOnly(ctx context.Context, userName, kbID, userQuestion string) (string, code.Code) {
+	newSession := &model.Session{
+		ID:         uuid.New().String(),
+		UserName:   userName,
+		Title:      userQuestion,
+		ActiveKBID: kbID,
+=======
+<<<<<<< Updated upstream
 func CreateStreamSessionOnly(ctx context.Context, userName string, userQuestion string) (string, code.Code) {
 	newSession := &model.Session{
 		ID:       uuid.New().String(),
 		UserName: userName,
 		Title:    userQuestion,
+=======
+func CreateStreamSessionOnly(ctx context.Context, userName, kbID, userQuestion string) (string, code.Code) {
+	sessionID := uuid.New().String()
+	l := logger.With("userName", userName, "kbID", kbID, "sessionID", sessionID)
+	newSession := &model.Session{
+		ID:         sessionID,
+		UserName:   userName,
+		Title:      userQuestion,
+		ActiveKBID: kbID,
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 	}
 	createdSession, err := session.CreateSession(ctx, newSession)
 	if err != nil {
-		log.Println("CreateStreamSessionOnly CreateSession error:", err)
+		l.Error("CreateStreamSessionOnly failed", "error", err)
 		return "", code.CodeServerBusy
 	}
 	return createdSession.ID, code.CodeSuccess
 }
 
 func StreamMessageToExistingSession(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
+	l := logger.With("userName", userName, "sessionID", sessionID)
 	// 确保 writer 支持 Flush
 	flusher, ok := writer.(http.Flusher)
 	if !ok {
-		log.Println("StreamMessageToExistingSession: streaming unsupported")
+		l.Error("streaming unsupported")
 		return code.CodeServerBusy
 	}
 
 	manager := aihelper.GetGlobalManager()
+<<<<<<< Updated upstream
+	sessionObj, getSessionErr := session.GetSessionByID(ctx, sessionID)
+	if getSessionErr != nil {
+		log.Println("StreamMessageToExistingSession GetSessionByID error: ", getSessionErr)
+		return code.CodeServerBusy
+	}
+=======
+<<<<<<< Updated upstream
+=======
+	sessionObj, getSessionErr := session.GetSessionByID(ctx, sessionID)
+	if getSessionErr != nil {
+		l.Error("GetSessionByID failed", "error", getSessionErr)
+		return code.CodeServerBusy
+	}
+	l = l.With("kbID", sessionObj.ActiveKBID)
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
 	var helper *aihelper.AIHelper
 	if modelType == aihelper.ModelTypeAuto {
@@ -112,18 +172,18 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 		var err error
 		helper, _, err = manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, sessionID, userQuestion, true)
 		if err != nil {
-			log.Println("StreamMessageToExistingSession auto route error:", err)
+			l.Error("auto route failed", "error", err)
 			return code.AIModelFail
 		}
 	} else {
-		opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+		opts, err := aihelper.BuildSessionCreateOptions(modelType, userName, sessionObj.ActiveKBID)
 		if err != nil {
-			log.Println("StreamMessageToExistingSession BuildSessionCreateOptions error:", err)
+			l.Error("BuildSessionCreateOptions failed", "error", err)
 			return code.AIModelFail
 		}
 		helper, err = manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
 		if err != nil {
-			log.Println("StreamMessageToExistingSession GetOrCreateAIHelper error:", err)
+			l.Error("GetOrCreateAIHelper failed", "error", err)
 			return code.AIModelFail
 		}
 	}
@@ -131,25 +191,24 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 	cb := func(msg string) {
 		// 直接发送数据，不转义
 		// SSE 格式：data: <content>\n\n
-		log.Printf("[SSE] Sending chunk: %s (len=%d)\n", msg, len(msg))
+		l.Debug("SSE chunk sent", "len", len(msg))
 		_, err := writer.Write([]byte("data: " + msg + "\n\n"))
 		if err != nil {
-			log.Println("[SSE] Write error:", err)
+			l.Error("SSE write failed", "error", err)
 			return
 		}
-		flusher.Flush() //  每次必须 flush
-		log.Println("[SSE] Flushed")
+		flusher.Flush()
 	}
 
 	_, err_ := helper.StreamResponse(ctx, userName, cb, userQuestion)
 	if err_ != nil {
-		log.Println("StreamMessageToExistingSession StreamResponse error:", err_)
+		l.Error("StreamResponse failed", "error", err_)
 		return code.AIModelFail
 	}
 
 	_, err := writer.Write([]byte("data: [DONE]\n\n"))
 	if err != nil {
-		log.Println("StreamMessageToExistingSession write DONE error:", err)
+		l.Error("write DONE failed", "error", err)
 		return code.AIModelFail
 	}
 	flusher.Flush()
@@ -157,26 +216,27 @@ func StreamMessageToExistingSession(ctx context.Context, userName string, sessio
 	return code.CodeSuccess
 }
 
-func CreateStreamSessionAndSendMessage(ctx context.Context, userName string, userQuestion string, modelType string, writer http.ResponseWriter) (string, code.Code) {
-
-	sessionID, statusCode := CreateStreamSessionOnly(ctx, userName, userQuestion)
-	if statusCode != code.CodeSuccess {
-		return "", statusCode
-	}
-
-	// 开始把本次回答进行流式发送（包含最后的 [DONE]）
-	statusCode = StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
-	if statusCode != code.CodeSuccess {
-
-		return sessionID, statusCode
-	}
-
-	return sessionID, code.CodeSuccess
-}
-
 func ChatSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string) (string, code.Code) {
+	l := logger.With("userName", userName, "sessionID", sessionID)
 	//1：获取AIHelper
 	manager := aihelper.GetGlobalManager()
+<<<<<<< Updated upstream
+	sessionObj, getSessionErr := session.GetSessionByID(ctx, sessionID)
+	if getSessionErr != nil {
+		log.Println("StreamMessageToExistingSession GetSessionByID error: ", getSessionErr)
+		return "", code.CodeServerBusy
+	}
+=======
+<<<<<<< Updated upstream
+=======
+	sessionObj, getSessionErr := session.GetSessionByID(ctx, sessionID)
+	if getSessionErr != nil {
+		l.Error("GetSessionByID failed", "error", getSessionErr)
+		return "", code.CodeServerBusy
+	}
+	l = l.With("kbID", sessionObj.ActiveKBID)
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 
 	var helper *aihelper.AIHelper
 	if modelType == aihelper.ModelTypeAuto {
@@ -184,18 +244,18 @@ func ChatSend(ctx context.Context, userName string, sessionID string, userQuesti
 		var err error
 		helper, _, err = manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, sessionID, userQuestion, false)
 		if err != nil {
-			log.Println("ChatSend auto route error:", err)
+			l.Error("auto route failed", "error", err)
 			return "", code.AIModelFail
 		}
 	} else {
-		opts, err := aihelper.BuildSessionCreateOptions(modelType, userName)
+		opts, err := aihelper.BuildSessionCreateOptions(modelType, userName, sessionObj.ActiveKBID)
 		if err != nil {
-			log.Println("ChatSend BuildSessionCreateOptions error:", err)
+			l.Error("BuildSessionCreateOptions failed", "error", err)
 			return "", code.AIModelFail
 		}
 		helper, err = manager.GetOrCreateAIHelper(ctx, userName, sessionID, opts)
 		if err != nil {
-			log.Println("ChatSend GetOrCreateAIHelper error:", err)
+			l.Error("GetOrCreateAIHelper failed", "error", err)
 			return "", code.AIModelFail
 		}
 	}
@@ -203,7 +263,7 @@ func ChatSend(ctx context.Context, userName string, sessionID string, userQuesti
 	//2：生成AI回复
 	aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
 	if err_ != nil {
-		log.Println("ChatSend GenerateResponse error:", err_)
+		l.Error("GenerateResponse failed", "error", err_)
 		return "", code.AIModelFail
 	}
 
@@ -215,6 +275,7 @@ func GetChatHistory(userName string, sessionID string) ([]model.History, code.Co
 	manager := aihelper.GetGlobalManager()
 	helper, exists := manager.GetAIHelper(userName, sessionID)
 	if !exists {
+		logger.With("userName", userName, "sessionID", sessionID).Warn("AIHelper not found for GetChatHistory")
 		return nil, code.CodeServerBusy
 	}
 

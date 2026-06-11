@@ -50,14 +50,14 @@ type Rabbitmq struct {
 }
 
 type RagModelConfig struct {
-	RagEmbeddingModel string `toml:"embeddingModel"`
-	RagChatModelName  string `toml:"chatModelName"`
-	RagDocDir         string `toml:"docDir"`
-	RagBaseUrl        string `toml:"baseUrl"`
-	RagDimension      int    `toml:"dimension"`
-	RagChunkSize      int    `toml:"chunkSize"`
-	RagChunkOverlap   int    `toml:"chunkOverlap"`
-	RagTopK           int    `toml:"topK"`
+	RagEmbeddingModel   string `toml:"embeddingModel"`
+	RagEmbeddingBaseURL string `toml:"embeddingBaseUrl"`
+	RagEmbeddingAPIType string `toml:"embeddingApiType"`
+	RagDocDir           string `toml:"docDir"`
+	RagDimension        int    `toml:"dimension"`
+	RagChunkSize        int    `toml:"chunkSize"`
+	RagChunkOverlap     int    `toml:"chunkOverlap"`
+	RagTopK             int    `toml:"topK"`
 }
 
 type VoiceServiceConfig struct {
@@ -93,7 +93,7 @@ var config *Config
 // InitConfig 初始化项目配置
 func InitConfig() error {
 	// 设置配置文件路径（相对于 main.go 所在的目录）
-	if _, err := toml.DecodeFile("config/config.toml", config); err != nil {
+	if _, err := toml.DecodeFile("config/config.local.toml", config); err != nil {
 		log.Fatal(err.Error())
 		return err
 	}

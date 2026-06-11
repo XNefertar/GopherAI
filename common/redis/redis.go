@@ -90,9 +90,9 @@ func CheckCaptchaForEmail(ctx context.Context, email, userInput string) (bool, e
 	return false, nil
 }
 
-// InitRedisIndex 初始化 Redis 索引，支持按文件名区分
-func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
-	indexName := GenerateIndexName(filename)
+// InitRedisIndex 初始化 Redis 索引，支持按知识库ID区分
+func InitRedisIndex(ctx context.Context, kbID string, dimension int) error {
+	indexName := GenerateIndexName(kbID)
 
 	// 检查索引是否存在
 	_, err := Rdb.Do(ctx, "FT.INFO", indexName).Result()
@@ -102,13 +102,13 @@ func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
 	}
 
 	// 如果索引不存在，创建新索引
-	if !strings.Contains(err.Error(), "Unknown index name") {
+	if !strings.Contains(err.Error(), "Unknown index name") && !strings.Contains(err.Error(), "Index not found") {
 		return fmt.Errorf("检查索引失败: %w", err)
 	}
 
 	fmt.Println("正在创建 Redis 索引...")
 
-	prefix := GenerateIndexNamePrefix(filename)
+	prefix := GenerateIndexNamePrefix(kbID)
 
 	// 创建索引
 	createArgs := []interface{}{
@@ -116,9 +116,10 @@ func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
 		"ON", "HASH",
 		"PREFIX", "1", prefix,
 		"SCHEMA",
-		"content", "TEXT",
-		"metadata", "TEXT",
-		"vector", "VECTOR", "FLAT",
+		"content", "TEXT", // 用于倒排关键词搜索
+		"file_id", "TAG",
+		"filename", "TAG", // 用于正排过滤 (例如按文件名精确匹配过滤)
+		"vector", "VECTOR", "FLAT", // 用于向量最近邻召回
 		"6",
 		"TYPE", "FLOAT32",
 		"DIM", dimension,
@@ -133,12 +134,16 @@ func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
 	return nil
 }
 
-// DeleteRedisIndex 删除 Redis 索引，支持按文件名区分
-func DeleteRedisIndex(ctx context.Context, filename string) error {
-	indexName := GenerateIndexName(filename)
+// DeleteRedisIndex 删除 Redis 索引，支持按知识库ID区分
+func DeleteRedisIndex(ctx context.Context, kbID string) error {
+	indexName := GenerateIndexName(kbID)
 
 	// 删除索引
-	if err := Rdb.Do(ctx, "FT.DROPINDEX", indexName).Err(); err != nil {
+	if err := Rdb.Do(ctx, "FT.DROPINDEX", indexName, "DD").Err(); err != nil {
+		if strings.Contains(err.Error(), "Unknown Index Name") ||
+			strings.Contains(err.Error(), "no such index") {
+			return nil
+		}
 		return fmt.Errorf("删除索引失败: %w", err)
 	}
 

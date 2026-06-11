@@ -24,16 +24,41 @@
         <button class="back-btn" @click="$router.push('/menu')">← 返回</button>
         <button class="sync-btn" @click="syncHistory" :disabled="!currentSessionId || tempSession">同步历史数据</button>
         <label for="modelType">选择模型：</label>
-        <select id="modelType" v-model="selectedModel" class="model-select">
-          <option value="1">阿里百炼</option>
-          <option value="2">阿里百炼 RAG</option>
-          <option value="3">阿里百炼 MCP</option>
+        <select
+          id="modelType"
+          v-model="selectedModel"
+          class="model-select"
+          :disabled="modelLoading || !modelOptions.length"
+          @change="handleModelChange"
+        >
+          <option v-if="modelLoading" value="" disabled>模型加载中...</option>
+          <option v-else-if="!modelOptions.length" value="" disabled>暂无模型</option>
+          <option
+            v-for="model in modelOptions"
+            :key="model.type"
+            :value="model.type"
+            :disabled="!model.available"
+          >
+            {{ model.available ? model.label : `${model.label}（${model.disabledReason || '当前不可用'}）` }}
+          </option>
         </select>
-        <label for="streamingMode" style="margin-left: 20px;">
-          <input type="checkbox" id="streamingMode" v-model="isStreaming" />
+        <span v-if="selectedModelMeta" class="model-hint">{{ selectedModelMeta.description }}</span>
+        <label for="streamingMode" style="margin-left: 8px;" :title="supportsStreaming ? '' : '当前模型不支持流式响应'">
+          <input type="checkbox" id="streamingMode" v-model="isStreaming" :disabled="!supportsStreaming" />
           流式响应
         </label>
-        <button class="upload-btn" @click="triggerFileUpload" :disabled="uploading">📎 上传文档(.md/.txt)</button>
+        <div class="kb-toolbar">
+          <label for="kbSelect">知识库：</label>
+          <select id="kbSelect" v-model="selectedKBId" class="kb-select" @change="handleKBChange">
+            <option value="">请选择知识库</option>
+            <option v-for="kb in kbList" :key="kb.id" :value="kb.id">
+              {{ kb.name }}
+            </option>
+          </select>
+          <button class="kb-action-btn" @click="createKnowledgeBase" :disabled="kbLoading">新建知识库</button>
+          <button class="kb-refresh-btn" @click="refreshKnowledgeBases" :disabled="kbLoading">刷新知识库</button>
+          <button class="upload-btn" @click="triggerFileUpload" :disabled="uploading || !selectedKBId">上传文档(.md/.txt)</button>
+        </div>
         <input
           ref="fileInput"
           type="file"
@@ -41,6 +66,29 @@
           style="display: none"
           @change="handleFileUpload"
         />
+      </div>
+
+      <div class="kb-panel">
+        <div class="kb-panel-header">
+          <span>知识库管理</span>
+          <span class="kb-panel-tip">{{ kbPanelTip }}</span>
+        </div>
+        <div v-if="!kbList.length" class="kb-empty-text">暂无知识库，请先新建知识库。</div>
+        <div v-else-if="!selectedKBId" class="kb-empty-text">请选择一个知识库后再上传文档或发起依赖知识库的对话。</div>
+        <template v-else>
+          <div class="kb-selected-name">当前知识库：{{ selectedKBName }}</div>
+          <div class="kb-file-list">
+            <span v-if="kbFileLoading" class="kb-empty-text">文件加载中...</span>
+            <span v-else-if="!kbFiles.length" class="kb-empty-text">当前知识库暂无文件。</span>
+            <div v-else v-for="file in kbFiles" :key="file.id" class="kb-file-item">
+              <div>
+                <div class="kb-file-name">{{ file.origName }}</div>
+                <div class="kb-file-meta">状态：{{ file.status || 'indexed' }} · 分块数：{{ file.chunkCount }}</div>
+              </div>
+              <button class="kb-file-delete-btn" @click="removeKBFile(file.id)">删除</button>
+            </div>
+          </div>
+        </template>
       </div>
 
       <div class="chat-messages" ref="messagesRef">
@@ -84,7 +132,7 @@
 
 
 import { ref, nextTick, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../utils/api'
 
 export default {
@@ -99,11 +147,247 @@ export default {
     const loading = ref(false)
     const messagesRef = ref(null)
     const messageInput = ref(null)
-    const selectedModel = ref('1')
+    const selectedModel = ref('')
+    const modelOptions = ref([])
+    const modelLoading = ref(false)
     const isStreaming = ref(false)
     const uploading = ref(false)
     const fileInput = ref(null)
+    const kbList = ref([])
+    const selectedKBId = ref('')
+    const kbFiles = ref([])
+    const kbLoading = ref(false)
+    const kbFileLoading = ref(false)
 
+    const selectedModelMeta = computed(() => modelOptions.value.find(model => model.type === selectedModel.value) || null)
+    const requiresKB = computed(() => Boolean(selectedModelMeta.value?.requiresKB))
+    const supportsStreaming = computed(() => Boolean(selectedModelMeta.value?.supportsStream))
+    const kbPanelTip = computed(() => (
+      requiresKB.value
+        ? '当前模型新会话会绑定当前选中的知识库'
+        : '可先维护知识库，切换到知识库问答模型后再使用'
+    ))
+    const selectedKBName = computed(() => {
+      const currentKB = kbList.value.find(kb => kb.id === selectedKBId.value)
+      return currentKB ? currentKB.name : '未选择知识库'
+    })
+
+    const normalizeKB = (kb) => ({
+      id: String(kb?.id || kb?.ID || ''),
+      name: kb?.name || kb?.Name || '未命名知识库',
+      description: kb?.description || kb?.Description || ''
+    })
+
+    const normalizeModelOption = (model) => ({
+      type: String(model?.type || ''),
+      key: model?.key || '',
+      label: model?.label || '未命名模型',
+      description: model?.description || '',
+      requiresKB: Boolean(model?.requiresKB),
+      supportsStream: model?.supportsStream !== false,
+      available: model?.available !== false,
+      disabledReason: model?.disabledReason || '',
+      isDefault: Boolean(model?.isDefault),
+      sort: Number(model?.sort ?? 0)
+    })
+
+    const pickModelType = (models, preferredType, defaultType) => {
+      const normalizedPreferredType = String(preferredType || '')
+      const normalizedDefaultType = String(defaultType || '')
+      const candidates = [
+        models.find(model => model.type === normalizedPreferredType && model.available),
+        models.find(model => model.type === normalizedDefaultType && model.available),
+        models.find(model => model.isDefault && model.available),
+        models.find(model => model.available),
+        models[0]
+      ]
+      return candidates.find(Boolean)?.type || ''
+    }
+
+    const handleModelChange = () => {
+      if (!supportsStreaming.value) {
+        isStreaming.value = false
+      }
+    }
+
+    const loadModelOptions = async (silent = false) => {
+      modelLoading.value = true
+      try {
+        const response = await api.get('/AI/chat/models')
+        if (response.data && response.data.status_code === 1000 && Array.isArray(response.data.models)) {
+          const list = response.data.models
+            .map(normalizeModelOption)
+            .filter(model => model.type)
+            .sort((a, b) => a.sort - b.sort)
+
+          modelOptions.value = list
+          selectedModel.value = pickModelType(list, selectedModel.value, response.data.defaultModelType)
+          handleModelChange()
+
+          if (!silent && !list.some(model => model.available)) {
+            ElMessage.warning('当前没有可用模型，请检查后端模型配置')
+          }
+          return
+        }
+        throw new Error(response.data?.status_msg || 'load models failed')
+      } catch (error) {
+        console.error('Load models error:', error)
+        modelOptions.value = []
+        selectedModel.value = ''
+        isStreaming.value = false
+        if (!silent) {
+          ElMessage.error('加载模型列表失败')
+        }
+      } finally {
+        modelLoading.value = false
+      }
+    }
+
+    const normalizeKBFile = (file) => ({
+      id: String(file?.id || file?.ID || ''),
+      origName: file?.origName || file?.OrigName || '未命名文件',
+      status: file?.status || file?.Status || '',
+      chunkCount: Number(file?.chunkCount ?? file?.ChunkCount ?? 0)
+    })
+
+    const loadKBFiles = async (kbID = selectedKBId.value, silent = false) => {
+      if (!kbID) {
+        kbFiles.value = []
+        return
+      }
+      kbFileLoading.value = true
+      try {
+        const response = await api.get(`/kb/${kbID}/files`)
+        if (response.data && response.data.status_code === 1000 && Array.isArray(response.data.files)) {
+          kbFiles.value = response.data.files.map(normalizeKBFile)
+          return
+        }
+        throw new Error(response.data?.status_msg || 'load kb files failed')
+      } catch (error) {
+        console.error('Load KB files error:', error)
+        kbFiles.value = []
+        if (!silent) {
+          ElMessage.error('加载知识库文件失败')
+        }
+      } finally {
+        kbFileLoading.value = false
+      }
+    }
+
+    const loadKnowledgeBases = async (silent = false) => {
+      kbLoading.value = true
+      try {
+        const response = await api.get('/kb')
+        if (response.data && response.data.status_code === 1000 && Array.isArray(response.data.kbs)) {
+          const list = response.data.kbs.map(normalizeKB).filter(kb => kb.id)
+          kbList.value = list
+
+          if (!list.length) {
+            selectedKBId.value = ''
+            kbFiles.value = []
+            return
+          }
+
+          const hasSelected = list.some(kb => kb.id === selectedKBId.value)
+          selectedKBId.value = hasSelected ? selectedKBId.value : list[0].id
+          await loadKBFiles(selectedKBId.value, true)
+          return
+        }
+        throw new Error(response.data?.status_msg || 'load kb failed')
+      } catch (error) {
+        console.error('Load KB error:', error)
+        kbList.value = []
+        kbFiles.value = []
+        selectedKBId.value = ''
+        if (!silent) {
+          ElMessage.error('加载知识库失败')
+        }
+      } finally {
+        kbLoading.value = false
+      }
+    }
+
+    const refreshKnowledgeBases = async () => {
+      await loadKnowledgeBases()
+      if (kbList.value.length) {
+        ElMessage.success('知识库已刷新')
+      }
+    }
+
+    const handleKBChange = async () => {
+      await loadKBFiles(selectedKBId.value)
+    }
+
+    const createKnowledgeBase = async () => {
+      try {
+        const { value } = await ElMessageBox.prompt('请输入知识库名称', '新建知识库', {
+          confirmButtonText: '创建',
+          cancelButtonText: '取消',
+          inputPattern: /\S+/,
+          inputErrorMessage: '知识库名称不能为空'
+        })
+
+        const response = await api.post('/kb', {
+          name: value.trim(),
+          description: ''
+        })
+
+        if (response.data && response.data.status_code === 1000 && response.data.kb) {
+          const createdKB = normalizeKB(response.data.kb)
+          await loadKnowledgeBases(true)
+          if (createdKB.id) {
+            selectedKBId.value = createdKB.id
+            await loadKBFiles(createdKB.id, true)
+          }
+          ElMessage.success('知识库创建成功')
+          return
+        }
+
+        ElMessage.error(response.data?.status_msg || '知识库创建失败')
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          console.error('Create KB error:', error)
+          ElMessage.error('知识库创建失败')
+        }
+      }
+    }
+
+    const removeKBFile = async (fileID) => {
+      if (!selectedKBId.value || !fileID) return
+      try {
+        await ElMessageBox.confirm('确认删除该文件吗？', '提示', {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+
+        const response = await api.delete(`/kb/${selectedKBId.value}/files/${fileID}`)
+        if (response.data && response.data.status_code === 1000) {
+          ElMessage.success('文件删除成功')
+          await loadKBFiles(selectedKBId.value, true)
+          return
+        }
+
+        ElMessage.error(response.data?.status_msg || '文件删除失败')
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          console.error('Remove KB file error:', error)
+          ElMessage.error('文件删除失败')
+        }
+      }
+    }
+
+    const requireKBForNewRAGSession = () => {
+      if (!selectedModel.value) {
+        ElMessage.warning('请先选择可用模型')
+        return false
+      }
+      if (tempSession.value && requiresKB.value && !selectedKBId.value) {
+        ElMessage.warning('请先选择知识库，再发起当前模型会话')
+        return false
+      }
+      return true
+    }
 
     const renderMarkdown = (text) => {
       if (!text && text !== '') return ''
@@ -267,6 +551,10 @@ export default {
         return
       }
 
+      if (!requireKBForNewRAGSession()) {
+        return
+      }
+
       const userMessage = {
         role: 'user',
         content: inputMessage.value
@@ -336,7 +624,11 @@ export default {
       }
 
       const body = tempSession.value
-        ? { question: question, modelType: selectedModel.value }
+        ? {
+            question: question,
+            modelType: selectedModel.value,
+            ...(requiresKB.value ? { kbID: selectedKBId.value } : {})
+          }
         : { question: question, modelType: selectedModel.value, sessionId: currentSessionId.value }
 
       try {
@@ -455,10 +747,10 @@ export default {
 
     async function handleNormal(question) {
       if (tempSession.value) {
-
         const response = await api.post('/AI/chat/send-new-session', {
           question: question,
-          modelType: selectedModel.value
+          modelType: selectedModel.value,
+          ...(requiresKB.value ? { kbID: selectedKBId.value } : {})
         })
         if (response.data && response.data.status_code === 1000) {
           const sessionId = String(response.data.sessionId)
@@ -470,7 +762,7 @@ export default {
           sessions.value[sessionId] = {
             id: sessionId,
             name: '新会话',
-            messages: [ { role: 'user', content: question }, aiMessage ]
+            messages: [{ role: 'user', content: question }, aiMessage]
           }
           currentSessionId.value = sessionId
           tempSession.value = false
@@ -515,6 +807,10 @@ export default {
     }
 
     const triggerFileUpload = () => {
+      if (!selectedKBId.value) {
+        ElMessage.warning('请先选择知识库')
+        return
+      }
       if (fileInput.value) {
         fileInput.value.click()
       }
@@ -524,14 +820,22 @@ export default {
       const file = event.target.files[0]
       if (!file) return
 
-      // 前端校验：只允许.md或.txt文件
-      const fileName = file.name.toLowerCase()
-      if (!fileName.endsWith('.md') && !fileName.endsWith('.txt')) {
-        ElMessage.error('只允许上传 .md 或 .txt 文件')
-        // 清空文件输入
+      const resetFileInput = () => {
         if (fileInput.value) {
           fileInput.value.value = ''
         }
+      }
+
+      const fileName = file.name.toLowerCase()
+      if (!fileName.endsWith('.md') && !fileName.endsWith('.txt')) {
+        ElMessage.error('只允许上传 .md 或 .txt 文件')
+        resetFileInput()
+        return
+      }
+
+      if (!selectedKBId.value) {
+        ElMessage.warning('请先选择知识库')
+        resetFileInput()
         return
       }
 
@@ -540,14 +844,15 @@ export default {
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await api.post('/file/upload', formData, {
+        const response = await api.post(`/kb/${selectedKBId.value}/files`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
         })
 
         if (response.data && response.data.status_code === 1000) {
-          ElMessage.success(`文件上传成功`)
+          ElMessage.success('文件上传成功')
+          await loadKBFiles(selectedKBId.value, true)
         } else {
           ElMessage.error(response.data?.status_msg || '上传失败')
         }
@@ -556,18 +861,18 @@ export default {
         ElMessage.error('文件上传失败')
       } finally {
         uploading.value = false
-        // 清空文件输入
-        if (fileInput.value) {
-          fileInput.value.value = ''
-        }
+        resetFileInput()
       }
     }
 
-    onMounted(() => {
-      loadSessions()
+    onMounted(async () => {
+      await Promise.all([
+        loadModelOptions(),
+        loadSessions(),
+        loadKnowledgeBases(true)
+      ])
     })
 
-    // expose to template
     return {
       sessions: computed(() => Object.values(sessions.value)),
       currentSessionId,
@@ -578,17 +883,33 @@ export default {
       messagesRef,
       messageInput,
       selectedModel,
+      selectedModelMeta,
+      modelOptions,
+      modelLoading,
       isStreaming,
       uploading,
       fileInput,
+      kbList,
+      selectedKBId,
+      selectedKBName,
+      kbFiles,
+      kbLoading,
+      kbFileLoading,
+      supportsStreaming,
+      kbPanelTip,
       renderMarkdown,
       playTTS,
       createNewSession,
       switchSession,
       syncHistory,
       sendMessage,
+      handleModelChange,
       triggerFileUpload,
-      handleFileUpload
+      handleFileUpload,
+      handleKBChange,
+      refreshKnowledgeBases,
+      createKnowledgeBase,
+      removeKBFile
     }
   }
 }
@@ -731,10 +1052,128 @@ export default {
   color: #2c3e50;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   padding: 12px 24px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   gap: 12px;
+}
+
+.kb-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.kb-select {
+  min-width: 180px;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  background: white;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.kb-action-btn,
+.kb-refresh-btn,
+.kb-file-delete-btn {
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.kb-action-btn {
+  background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);
+  color: white;
+  padding: 8px 14px;
+}
+
+.kb-refresh-btn {
+  background: rgba(64, 158, 255, 0.12);
+  color: #409eff;
+  padding: 8px 14px;
+}
+
+.kb-panel {
+  margin: 16px 24px 0;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+}
+
+.kb-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.kb-panel-tip,
+.kb-file-meta,
+.kb-empty-text {
+  color: #7f8c8d;
+  font-size: 13px;
+}
+
+.kb-selected-name {
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #34495e;
+}
+
+.kb-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kb-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.kb-file-name {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 4px;
+}
+
+.kb-file-delete-btn {
+  background: rgba(245, 108, 108, 0.12);
+  color: #f56c6c;
+  padding: 8px 12px;
+}
+
+.kb-file-delete-btn:hover,
+.kb-action-btn:hover,
+.kb-refresh-btn:hover {
+  transform: translateY(-1px);
+}
+
+.kb-empty-text {
+  display: inline-block;
+}
+
+@media (max-width: 960px) {
+  .kb-panel-header,
+  .kb-file-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .back-btn {
@@ -784,6 +1223,19 @@ export default {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.model-select:disabled {
+  background: #f5f7fa;
+  color: #a0a8b0;
+  cursor: not-allowed;
+}
+
+.model-hint {
+  max-width: 280px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .upload-btn {

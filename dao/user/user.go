@@ -1,6 +1,7 @@
 package user
 
 import (
+	"GopherAI/common/logger"
 	"GopherAI/common/mysql"
 	"GopherAI/model"
 	"GopherAI/utils"
@@ -25,18 +26,25 @@ func IsExistUser(ctx context.Context, username string) (bool, *model.User) {
 		return false, nil
 	}
 
+	if err != nil {
+		logger.With("userName", username).Error("IsExistUser query failed", "error", err)
+	}
+
 	return true, user
 }
 
 func Register(ctx context.Context, username, email, password string) (*model.User, bool) {
+	l := logger.With("userName", username, "email", email)
 	if user, err := mysql.InsertUser(ctx, &model.User{
 		Email:    email,
 		Name:     username,
 		Username: username,
 		Password: utils.MD5(password),
 	}); err != nil {
+		l.Error("InsertUser failed", "error", err)
 		return nil, false
 	} else {
+		l.Info("user registered to db")
 		return user, true
 	}
 }
