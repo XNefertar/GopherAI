@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+<<<<<<< Updated upstream
 	type (
 		GetUserSessionsResponse struct {
 			controller.Response
@@ -24,6 +25,22 @@ import (
 		}
 		CreateSessionAndSendMessageRequest struct {
 
+=======
+type (
+	GetUserSessionsResponse struct {
+		controller.Response
+		Sessions []model.SessionInfo `json:"sessions,omitempty"`
+	}
+<<<<<<< Updated upstream
+=======
+	GetChatModelsResponse struct {
+		controller.Response
+		DefaultModelType string                     `json:"defaultModelType,omitempty"`
+		Models           []aihelper.ModelDescriptor `json:"models,omitempty"`
+	}
+>>>>>>> Stashed changes
+	CreateSessionAndSendMessageRequest struct {
+>>>>>>> Stashed changes
 		UserQuestion string `json:"question" binding:"required"`  // 用户问题;
 		ModelType    string `json:"modelType" binding:"required"` // 模型类型;
 		KBID         string `json:"kbID,omitempty"`

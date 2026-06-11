@@ -2,6 +2,7 @@ package main
 
 import (
 	"GopherAI/common/aihelper"
+	"GopherAI/common/logger"
 	"GopherAI/common/mysql"
 	"GopherAI/common/rabbitmq"
 	"GopherAI/common/redis"
@@ -10,7 +11,6 @@ import (
 	"GopherAI/router"
 	"context"
 	"fmt"
-	"log"
 )
 
 func StartServer(addr string, port int) error {
@@ -31,26 +31,26 @@ func readDataFromDB() error {
 	// 遍历数据库消息
 	for i := range msgs {
 		m := &msgs[i]
+		l := logger.With("userName", m.UserName, "sessionID", m.SessionID)
 		//默认openai模型
 		modelType := "1"
 		opts, err := aihelper.BuildSessionCreateOptions(modelType, m.UserName, "")
 		if err != nil {
-			log.Printf("[readDataFromDB] failed to build options for user=%s session=%s: %v", m.UserName, m.SessionID, err)
+			l.Error("failed to build options for readDataFromDB", "error", err)
 			continue
 		}
 
 		// 创建对应的 AIHelper
 		helper, err := manager.GetOrCreateAIHelper(context.Background(), m.UserName, m.SessionID, opts)
 		if err != nil {
-			log.Printf("[readDataFromDB] failed to create helper for user=%s session=%s: %v", m.UserName, m.SessionID, err)
+			l.Error("failed to create helper for readDataFromDB", "error", err)
 			continue
 		}
-		log.Println("readDataFromDB init:  ", helper.SessionID)
 		// 添加消息到内存中(不开启存储功能)
 		helper.AddMessage(m.Content, m.UserName, m.IsUser, false)
 	}
 
-	log.Println("AIHelperManager init success ")
+	logger.Info("AIHelperManager init success")
 	return nil
 }
 
@@ -60,7 +60,7 @@ func main() {
 	port := conf.MainConfig.Port
 	//初始化mysql
 	if err := mysql.InitMysql(); err != nil {
-		log.Println("InitMysql error , " + err.Error())
+		logger.Error("InitMysql failed", "error", err)
 		return
 	}
 	//初始化AIHelperManager
@@ -68,10 +68,10 @@ func main() {
 
 	//初始化redis
 	redis.Init()
-	log.Println("redis init success  ")
+	logger.Info("redis init success")
 	//初始化rabbitmq
 	rabbitmq.InitRabbitMQ()
-	log.Println("rabbitmq init success  ")
+	logger.Info("rabbitmq init success")
 
 	err := StartServer(host, port) // 启动 HTTP 服务
 	if err != nil {
