@@ -1,6 +1,7 @@
 package session
 
 import (
+	"GopherAI/common/aihelper"
 	"GopherAI/common/code"
 	"GopherAI/controller"
 	"GopherAI/model"
@@ -11,14 +12,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	GetUserSessionsResponse struct {
-		controller.Response
-		Sessions []model.SessionInfo `json:"sessions,omitempty"`
-	}
-	CreateSessionAndSendMessageRequest struct {
+	type (
+		GetUserSessionsResponse struct {
+			controller.Response
+			Sessions []model.SessionInfo `json:"sessions,omitempty"`
+		}
+		GetChatModelsResponse struct {
+			controller.Response
+			DefaultModelType string                     `json:"defaultModelType,omitempty"`
+			Models           []aihelper.ModelDescriptor `json:"models,omitempty"`
+		}
+		CreateSessionAndSendMessageRequest struct {
+
 		UserQuestion string `json:"question" binding:"required"`  // 用户问题;
 		ModelType    string `json:"modelType" binding:"required"` // 模型类型;
+		KBID         string `json:"kbID,omitempty"`
 	}
 
 	CreateSessionAndSendMessageResponse struct {
@@ -62,6 +70,14 @@ func GetUserSessionsByUserName(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+func GetChatModels(c *gin.Context) {
+	res := new(GetChatModelsResponse)
+	res.Success()
+	res.DefaultModelType = aihelper.GetDefaultModelType()
+	res.Models = aihelper.ListModelDescriptors()
+	c.JSON(http.StatusOK, res)
+}
+
 func CreateSessionAndSendMessage(c *gin.Context) {
 	req := new(CreateSessionAndSendMessageRequest)
 	res := new(CreateSessionAndSendMessageResponse)
@@ -71,7 +87,7 @@ func CreateSessionAndSendMessage(c *gin.Context) {
 		return
 	}
 	//内部会创建会话并发送消息，并会将AI回答、当前会话返回
-	session_id, aiInformation, statusCode := session.CreateSessionAndSendMessage(c.Request.Context(), userName, req.UserQuestion, req.ModelType)
+	session_id, aiInformation, statusCode := session.CreateSessionAndSendMessage(c.Request.Context(), userName, req.KBID, req.UserQuestion, req.ModelType)
 
 	if statusCode != code.CodeSuccess {
 		c.JSON(http.StatusOK, res.CodeOf(statusCode))
@@ -99,8 +115,18 @@ func CreateStreamSessionAndSendMessage(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("X-Accel-Buffering", "no") // 禁止代理缓存
 
+	if req.ModelType == aihelper.ModelTypeRAG && req.KBID == "" {
+		c.SSEvent("error", gin.H{"message": "kbID is required for RAG"})
+		return
+	}
+
 	// 先创建会话并立即把 sessionId 下发给前端，随后再开始流式输出
-	sessionID, statusCode := session.CreateStreamSessionOnly(c.Request.Context(), userName, req.UserQuestion)
+	sessionID, statusCode := session.CreateStreamSessionOnly(
+		c.Request.Context(),
+		userName,
+		req.KBID,
+		req.UserQuestion,
+	)
 	if statusCode != code.CodeSuccess {
 		c.SSEvent("error", gin.H{"message": "Failed to create session"})
 		return
@@ -111,7 +137,14 @@ func CreateStreamSessionAndSendMessage(c *gin.Context) {
 	c.Writer.Flush()
 
 	// 然后开始把本次回答进行流式发送（包含最后的 [DONE]）
-	statusCode = session.StreamMessageToExistingSession(c.Request.Context(), userName, sessionID, req.UserQuestion, req.ModelType, http.ResponseWriter(c.Writer))
+	statusCode = session.StreamMessageToExistingSession(
+		c.Request.Context(),
+		userName,
+		sessionID,
+		req.UserQuestion,
+		req.ModelType,
+		http.ResponseWriter(c.Writer),
+	)
 	if statusCode != code.CodeSuccess {
 		c.SSEvent("error", gin.H{"message": "Failed to send message"})
 		return

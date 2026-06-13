@@ -1,6 +1,7 @@
 package aihelper
 
 import (
+	"GopherAI/dao/session"
 	"context"
 	"log"
 	"os"
@@ -83,10 +84,13 @@ var trivialKeywords = []string{
 func (r *RuleBasedRouter) Route(ctx context.Context, userName, sessionID, question string, stream bool) (RouteDecision, error) {
 	q := strings.ToLower(strings.TrimSpace(question))
 	length := utf8.RuneCountInString(q)
-
+	sessionObj, err := session.GetSessionByID(ctx, sessionID)
+	if err != nil {
+		return RouteDecision{}, err
+	}
 	// 1. 工具调用类：优先级最高，命中即走 MCP
 	if hitAny(q, mcpKeywords) {
-		opts, err := buildOptionsForType(ModelTypeMCP, userName)
+		opts, err := buildOptionsForType(ModelTypeMCP, userName, sessionObj.ActiveKBID)
 		if err == nil {
 			return RouteDecision{ModelType: ModelTypeMCP, Reason: "rule:mcp_keyword", Options: opts}, nil
 		}
@@ -95,7 +99,7 @@ func (r *RuleBasedRouter) Route(ctx context.Context, userName, sessionID, questi
 
 	// 2. 知识增强类：命中文档/知识库关键词走 RAG
 	if hitAny(q, ragKeywords) {
-		opts, err := buildOptionsForType(ModelTypeRAG, userName)
+		opts, err := buildOptionsForType(ModelTypeRAG, userName, sessionObj.ActiveKBID)
 		if err == nil {
 			return RouteDecision{ModelType: ModelTypeRAG, Reason: "rule:rag_keyword", Options: opts}, nil
 		}
@@ -104,7 +108,7 @@ func (r *RuleBasedRouter) Route(ctx context.Context, userName, sessionID, questi
 
 	// 3. 复杂推理类：明确命中复杂关键词或问题特别长，走主模型
 	if hitAny(q, complexKeywords) || length >= r.LongQuestionThreshold {
-		opts, err := buildOptionsForType(r.DefaultModelType, userName)
+		opts, err := buildOptionsForType(r.DefaultModelType, userName, sessionObj.ActiveKBID)
 		if err == nil {
 			return RouteDecision{ModelType: r.DefaultModelType, Reason: "rule:complex_or_long", Options: opts}, nil
 		}
@@ -114,19 +118,19 @@ func (r *RuleBasedRouter) Route(ctx context.Context, userName, sessionID, questi
 	if hitAny(q, trivialKeywords) || length <= r.ShortQuestionThreshold {
 		// 若配置了 Ollama 本地模型，则优先使用本地推理，进一步降低成本
 		if os.Getenv("OLLAMA_MODEL_NAME") != "" {
-			opts, err := buildOptionsForType(ModelTypeOllama, userName)
+			opts, err := buildOptionsForType(ModelTypeOllama, userName, sessionObj.ActiveKBID)
 			if err == nil {
 				return RouteDecision{ModelType: ModelTypeOllama, Reason: "rule:trivial_local", Options: opts}, nil
 			}
 		}
-		opts, err := buildOptionsForType(r.CheapModelType, userName)
+		opts, err := buildOptionsForType(r.CheapModelType, userName, sessionObj.ActiveKBID)
 		if err == nil {
 			return RouteDecision{ModelType: r.CheapModelType, Reason: "rule:trivial", Options: opts}, nil
 		}
 	}
 
 	// 5. 兜底：默认主模型
-	opts, err := buildOptionsForType(r.DefaultModelType, userName)
+	opts, err := buildOptionsForType(r.DefaultModelType, userName, sessionObj.ActiveKBID)
 	if err != nil {
 		return RouteDecision{}, err
 	}
@@ -147,8 +151,8 @@ func hitAny(q string, keywords []string) bool {
 }
 
 // buildOptionsForType 是 BuildSessionCreateOptions 的内部薄包装，避免 router 直接耦合错误处理细节。
-func buildOptionsForType(modelType, userName string) (CreateOptions, error) {
-	return BuildSessionCreateOptions(modelType, userName)
+func buildOptionsForType(modelType, userName, kbID string) (CreateOptions, error) {
+	return BuildSessionCreateOptions(modelType, userName, kbID)
 }
 
 // 全局路由器单例：服务层可以直接使用，也可以通过 SetGlobalRouter 注入自定义实现做 A/B。

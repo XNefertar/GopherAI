@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	embeddingArk "github.com/cloudwego/eino-ext/components/embedding/ark"
@@ -79,40 +80,21 @@ func splitTextIntoChunks(text string, chunkSize, overlap int) []string {
 // 构建知识库索引
 // 专业说法：文本解析、文本切块、向量化、存储向量
 // 通俗理解：把“人能读的文档”，转换成“AI 能按语义搜索的格式”，并存起来
-func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
-
-	// 用于控制整个初始化流程（超时 / 取消等），这里先用默认背景即可
-	ctx := context.Background()
-
-	// 从环境变量中读取调用向量模型所需的 API Key
-	apiKey := os.Getenv("OPENAI_API_KEY")
-
+func NewRAGIndexer(ctx context.Context, kbID, embeddingModel string) (*RAGIndexer, error) {
 	// 向量的维度大小（等于向量模型输出的数字个数）
 	// Redis 在创建向量索引时必须提前知道这个值
 	dimension := config.GetConfig().RagModelConfig.RagDimension
 
-	// 1. 配置并创建“向量生成器”（Embedding）
-	// 可以理解为：找一个“翻译官”，
-	// 专门负责把文本翻译成 AI 能理解的“向量表示”
-	embedConfig := &embeddingArk.EmbeddingConfig{
-		BaseURL: config.GetConfig().RagModelConfig.RagBaseUrl, // 向量模型服务地址
-		APIKey:  apiKey,                                       // 鉴权信息
-		Model:   embeddingModel,                               // 使用哪个向量模型
-	}
-
-	// 创建向量生成器实例
-	// 后续所有文本的“向量化”都会通过它完成
-	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	embedder, err := newRAGEmbedder(ctx, embeddingModel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create embedder: %w", err)
+		return nil, err
 	}
-
 	// ===============================
 	// 2. 初始化 Redis 中的向量索引结构
 	// ===============================
 	// 可以理解为：先在 Redis 里建好“仓库”，
 	// 告诉它以后要存向量，并且每个向量的维度是多少
-	if err := redisPkg.InitRedisIndex(ctx, filename, dimension); err != nil {
+	if err := redisPkg.InitRedisIndex(ctx, kbID, dimension); err != nil {
 		return nil, fmt.Errorf("failed to init redis index: %w", err)
 	}
 
@@ -123,32 +105,27 @@ func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
 	// 3. 配置索引器（定义：文档如何被存进 Redis）
 	// ===============================
 	indexerConfig := &redisIndexer.IndexerConfig{
-		Client:    rdb,                                     // Redis 客户端
-		KeyPrefix: redis.GenerateIndexNamePrefix(filename), // 不同知识库使用不同前缀，避免冲突
-		BatchSize: 10,                                      // 批量处理文档，提高写入效率
+		Client:    rdb,                                 // Redis 客户端
+		KeyPrefix: redis.GenerateIndexNamePrefix(kbID), // 不同知识库使用不同前缀，避免冲突
+		BatchSize: 10,                                  // 批量处理文档，提高写入效率
 
 		// 定义：一段文档（Document）在 Redis 中该如何存储
 		DocumentToHashes: func(ctx context.Context, doc *schema.Document) (*redisIndexer.Hashes, error) {
-
-			// 从文档的元数据中取出来源信息（例如文件名、URL）
 			source := ""
 			if s, ok := doc.MetaData["source"].(string); ok {
 				source = s
 			}
-
-			// 构造 Redis 中实际存储的数据结构（Hash）
+			filename := ""
+			if f, ok := doc.MetaData["filename"].(string); ok {
+				filename = f
+			}
+			fileID, _ := doc.MetaData["file_id"].(string)
 			return &redisIndexer.Hashes{
-				// Redis Key，一般由“知识库名 + 文档块 ID”组成
-				Key: fmt.Sprintf("%s:%s", filename, doc.ID),
-
-				// Redis Hash 中的字段
+				Key: fmt.Sprintf("%s:%s:%s", kbID, fileID, doc.ID),
 				Field2Value: map[string]redisIndexer.FieldValue{
-					// content：原始文本内容
-					// EmbedKey 表示：该字段需要先做向量化，
-					// 生成的向量会存入名为 "vector" 的字段中
-					"content": {Value: doc.Content, EmbedKey: "vector"},
-
-					// metadata：一些辅助信息，不参与向量计算
+					"content":  {Value: doc.Content, EmbedKey: "vector"},
+					"filename": {Value: filename},
+					"file_id":  {Value: fileID},
 					"metadata": {Value: source},
 				},
 			}, nil
@@ -179,11 +156,11 @@ func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
 }
 
 // IndexFile 读取文件内容并创建向量索引
-func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
+func (r *RAGIndexer) IndexFile(ctx context.Context, kbID, fileID, filePath string) (int, error) {
 	// 读取文件内容
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
+		return 0, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	ragConfig := config.GetConfig().RagModelConfig
@@ -193,7 +170,7 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 	// 将长文本切成多个片段，确保 TopK 检索能从多个候选片段中挑选结果。
 	chunks := splitTextIntoChunks(string(content), chunkSize, chunkOverlap)
 	if len(chunks) == 0 {
-		return fmt.Errorf("no valid content chunks found")
+		return 0, fmt.Errorf("no valid content chunks found")
 	}
 
 	docs := make([]*schema.Document, 0, len(chunks))
@@ -203,6 +180,9 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 			Content: chunk,
 			MetaData: map[string]any{
 				"source":      filePath,
+				"filename":    filepath.Base(filePath),
+				"file_id":     fileID,
+				"kb_id":       kbID,
 				"chunk_index": i,
 			},
 		})
@@ -211,63 +191,89 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 	// 使用 indexer 批量存储多个文档片段（会自动进行向量化）
 	_, err = r.indexer.Store(ctx, docs)
 	if err != nil {
-		return fmt.Errorf("failed to store document chunks: %w", err)
+		return 0, fmt.Errorf("failed to store documents: %w", err)
 	}
 
+	return len(chunks), nil
+}
+
+// DeleteIndex 删除指定知识库的索引（静态方法，不依赖实例）
+func DeleteIndex(ctx context.Context, kbID string) error {
+	if err := redisPkg.DeleteRedisIndex(ctx, kbID); err != nil {
+		return fmt.Errorf("failed to delete redis index: %w", err)
+	}
+	// TODO: 可以添加清理同一 prefix 下 Hash Key 的逻辑
 	return nil
 }
 
-// DeleteIndex 删除指定文件的知识库索引（静态方法，不依赖实例）
-func DeleteIndex(ctx context.Context, filename string) error {
-	if err := redisPkg.DeleteRedisIndex(ctx, filename); err != nil {
-		return fmt.Errorf("failed to delete redis index: %w", err)
+func getRAGEmbeddingAPIKey() string {
+	for _, key := range []string{"RAG_EMBEDDING_API_KEY", "RAG_API_KEY"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
 	}
-	return nil
+	return ""
+}
+
+func getRAGEmbeddingAPIType() *embeddingArk.APIType {
+	raw := strings.ToLower(strings.TrimSpace(config.GetConfig().RagModelConfig.RagEmbeddingAPIType))
+
+	switch raw {
+	case "multimodal", "multi_modal", "multi-modal":
+		t := embeddingArk.APITypeMultiModal
+		return &t
+	case "text", "text_api":
+		t := embeddingArk.APITypeText
+		return &t
+	default:
+		t := embeddingArk.APITypeText
+		return &t
+	}
+}
+
+func newRAGEmbedder(ctx context.Context, modelName string) (embedding.Embedder, error) {
+	cfg := config.GetConfig().RagModelConfig
+	apiKey := getRAGEmbeddingAPIKey()
+	if apiKey == "" {
+		return nil, fmt.Errorf("RAG_EMBEDDING_API_KEY is empty")
+	}
+	if strings.TrimSpace(cfg.RagEmbeddingBaseURL) == "" {
+		return nil, fmt.Errorf("rag embedding base url is empty")
+	}
+	if strings.TrimSpace(modelName) == "" {
+		return nil, fmt.Errorf("rag embedding model is empty")
+	}
+
+	embedConfig := &embeddingArk.EmbeddingConfig{
+		BaseURL: cfg.RagEmbeddingBaseURL,
+		APIKey:  apiKey,
+		Model:   modelName,
+		APIType: getRAGEmbeddingAPIType(),
+	}
+
+	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rag embedder: %w", err)
+	}
+	return embedder, err
 }
 
 // NewRAGQuery 创建 RAG 查询器（用于向量检索和问答）
-func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
+func NewRAGQuery(ctx context.Context, kbID string) (*RAGQuery, error) {
 	cfg := config.GetConfig()
-	apiKey := os.Getenv("OPENAI_API_KEY")
 	topK := cfg.RagModelConfig.RagTopK
 	if topK <= 0 {
 		topK = defaultTopK
 	}
 
-	// 创建 embedding 模型
-	embedConfig := &embeddingArk.EmbeddingConfig{
-		BaseURL: cfg.RagModelConfig.RagBaseUrl,
-		APIKey:  apiKey,
-		Model:   cfg.RagModelConfig.RagEmbeddingModel,
-	}
-	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	embedder, err := newRAGEmbedder(ctx, cfg.RagModelConfig.RagEmbeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embedder: %w", err)
 	}
 
-	// 获取用户上传的文件名（假设每个用户只有一个文件）
-	// 这里需要从用户目录读取文件名
-	userDir := fmt.Sprintf("uploads/%s", username)
-	files, err := os.ReadDir(userDir)
-	if err != nil || len(files) == 0 {
-		return nil, fmt.Errorf("no uploaded file found for user %s", username)
-	}
-
-	var filename string
-	for _, f := range files {
-		if !f.IsDir() {
-			filename = f.Name()
-			break
-		}
-	}
-
-	if filename == "" {
-		return nil, fmt.Errorf("no valid file found for user %s", username)
-	}
-
 	// 创建 retriever
 	rdb := redisPkg.Rdb
-	indexName := redis.GenerateIndexName(filename)
+	indexName := redis.GenerateIndexName(kbID)
 
 	retrieverConfig := &redisRetriever.RetrieverConfig{
 		Client:       rdb,

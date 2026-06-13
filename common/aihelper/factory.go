@@ -37,14 +37,15 @@ func (f *AIModelFactory) registerCreators() {
 		return NewOpenAIModel(ctx, opts)
 	}
 
-	// 阿里百炼 RAG 模型
+	// 字节向量化 Embedding 模型
 	f.creators["2"] = func(ctx context.Context, opts CreateOptions) (AIModel, error) {
-		aliRagOpts, ok := opts.(RAGOptions)
+		embeddingRagOpts, ok := opts.(RAGOptions)
 		if !ok {
 			return nil, fmt.Errorf("RAG model expected RAGOptions")
 		}
-		username := aliRagOpts.Username
-		return NewAliRAGModel(ctx, username)
+		username := embeddingRagOpts.Username
+		kbID := embeddingRagOpts.kbID
+		return NewRagModel(ctx, username, kbID)
 	}
 
 	// MCP 模型（集成MCP服务）
