@@ -17,6 +17,7 @@ const (
 	CodeInvalidCaptcha   Code = 2008
 	CodeRecordNotFound   Code = 2009
 	CodeIllegalPassword  Code = 2010
+	CodeSessionNotExist  Code = 2011
 
 	CodeForbidden Code = 3001
 
