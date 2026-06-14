@@ -1,6 +1,7 @@
 package message
 
 import (
+	"GopherAI/common/logger"
 	"GopherAI/common/mysql"
 	"GopherAI/model"
 	"context"
@@ -30,4 +31,14 @@ func GetAllMessages(ctx context.Context) ([]model.Message, error) {
 	var msgs []model.Message
 	err := mysql.DB.WithContext(ctx).Order("created_at asc").Find(&msgs).Error
 	return msgs, err
+}
+
+func HardDeleteMessageBySessionID(ctx context.Context, sessionID string) (int64, error) {
+	result := mysql.DB.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Delete(&model.Message{})
+	if result.Error != nil {
+		logger.With("sessionID", sessionID).Error("HardDeleteMessagesBySessionID failed", "error", result.Error)
+	}
+	return result.RowsAffected, result.Error
 }
