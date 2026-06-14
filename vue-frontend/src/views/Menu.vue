@@ -1,62 +1,87 @@
 <template>
   <div class="menu-container">
-    <el-header class="header">
-      <h1>AI应用平台</h1>
-      <el-button type="danger" @click="handleLogout">退出登录</el-button>
-    </el-header>
-    <el-main class="main">
-      <div class="menu-grid">
-        <el-card class="menu-item" @click="$router.push('/ai-chat')">
-          <div class="card-content">
-            <el-icon size="48" color="#409eff"><ChatDotRound /></el-icon>
-            <h3>AI聊天</h3>
-            <p>与AI进行智能对话</p>
-          </div>
-        </el-card>
-        <el-card class="menu-item" @click="$router.push('/image-recognition')">
-          <div class="card-content">
-            <el-icon size="48" color="#67c23a"><Camera /></el-icon>
-            <h3>图像识别</h3>
-            <p>上传图片进行AI识别</p>
-          </div>
-        </el-card>
+    <div class="bg-grid"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+            <path d="M14 2L26 8.5V19.5L14 26L2 19.5V8.5L14 2Z" stroke="#3d7eff" stroke-width="1.5" fill="rgba(61,126,255,.12)"/>
+            <circle cx="14" cy="14" r="4" fill="#5edfff" opacity=".9"/>
+          </svg>
+        </div>
+        <span class="brand-name">GopherAI</span>
       </div>
-    </el-main>
+      <button class="logout-btn" @click="handleLogout">退出登录</button>
+    </header>
+
+    <!-- Main content -->
+    <main class="main">
+      <div class="page-title">
+        <h1>选择功能</h1>
+        <p>选择下方功能模块开始使用</p>
+      </div>
+      <div class="menu-grid">
+        <div class="menu-card" @click="$router.push('/ai-chat')">
+          <div class="card-icon chat-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M4 6C4 4.9 4.9 4 6 4H26C27.1 4 28 4.9 28 6V20C28 21.1 27.1 22 26 22H18L12 28V22H6C4.9 22 4 21.1 4 20V6Z"
+                stroke="#3d7eff" stroke-width="1.5" fill="rgba(61,126,255,.1)" stroke-linejoin="round"/>
+              <circle cx="11" cy="13" r="1.5" fill="#6aa3ff"/>
+              <circle cx="16" cy="13" r="1.5" fill="#6aa3ff"/>
+              <circle cx="21" cy="13" r="1.5" fill="#6aa3ff"/>
+            </svg>
+          </div>
+          <h3>AI 聊天</h3>
+          <p>与 AI 进行智能对话，支持知识库问答与多模型切换</p>
+          <div class="card-arrow">→</div>
+        </div>
+
+        <div class="menu-card" @click="$router.push('/image-recognition')">
+          <div class="card-icon img-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect x="3" y="5" width="26" height="22" rx="3" stroke="#5edfff" stroke-width="1.5" fill="rgba(94,223,255,.08)"/>
+              <circle cx="11" cy="13" r="3" stroke="#5edfff" stroke-width="1.5"/>
+              <path d="M3 22L10 15L16 21L21 16L29 24" stroke="#5edfff" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h3>图像识别</h3>
+          <p>上传图片，AI 自动识别内容并返回分类结果</p>
+          <div class="card-arrow">→</div>
+        </div>
+      </div>
+    </main>
   </div>
 </template>
 
 <script>
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Camera } from '@element-plus/icons-vue'
 
 export default {
   name: 'MenuView',
-  components: {
-    ChatDotRound,
-    Camera
-  },
   setup() {
     const router = useRouter()
 
     const handleLogout = async () => {
       try {
-        await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-          confirmButtonText: '确定',
+        await ElMessageBox.confirm('确定要退出登录吗？', '退出确认', {
+          confirmButtonText: '退出',
           cancelButtonText: '取消',
           type: 'warning'
         })
         localStorage.removeItem('token')
-        ElMessage.success('退出登录成功')
+        ElMessage.success('已退出登录')
         router.push('/login')
       } catch {
-        // 用户取消操作
+        // cancelled
       }
     }
 
-    return {
-      handleLogout
-    }
+    return { handleLogout }
   }
 }
 </script>
@@ -66,181 +91,213 @@ export default {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0f1117;
+  font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   position: relative;
   overflow: hidden;
 }
 
-.menu-container::before {
-  content: '';
+.bg-grid {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.05)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.05)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="90" cy="40" r="0.8" fill="rgba(255,255,255,0.05)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-  animation: grainMove 30s linear infinite;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(61,126,255,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(61,126,255,.04) 1px, transparent 1px);
+  background-size: 52px 52px;
+  pointer-events: none;
 }
 
-@keyframes grainMove {
-  0% { transform: translate(0, 0); }
-  100% { transform: translate(100px, 100px); }
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  opacity: .14;
+}
+.blob-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, #3d7eff 0%, transparent 70%);
+  top: -200px; right: -150px;
+  animation: blobDrift 20s ease-in-out infinite alternate;
+}
+.blob-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #5edfff 0%, transparent 70%);
+  bottom: -150px; left: -100px;
+  animation: blobDrift 26s ease-in-out infinite alternate-reverse;
+}
+@keyframes blobDrift {
+  from { transform: translate(0,0) scale(1); }
+  to   { transform: translate(40px,30px) scale(1.1); }
 }
 
+/* ── Header ── */
 .header {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 30px;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
-  z-index: 2;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  height: 60px;
+  background: rgba(22,27,39,.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
 }
 
-.header h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 600;
-  background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.8) 100%);
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  background: rgba(61,126,255,.1);
+  border: 1px solid rgba(61,126,255,.2);
+  border-radius: 9px;
+}
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  background: linear-gradient(90deg, #90bcff, #5edfff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.el-button {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  transition: all 0.3s ease;
+.logout-btn {
+  padding: 7px 16px;
+  background: rgba(255,80,80,.1);
+  color: #ff7070;
+  border: 1px solid rgba(255,80,80,.2);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .15s;
+}
+.logout-btn:hover {
+  background: rgba(255,80,80,.2);
+  border-color: rgba(255,80,80,.4);
 }
 
-.el-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-}
-
+/* ── Main ── */
 .main {
   flex: 1;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
   position: relative;
   z-index: 1;
+}
+
+.page-title {
+  text-align: center;
+  margin-bottom: 48px;
+  animation: fadeUp .6s ease-out;
+}
+.page-title h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #e8eaf0;
+  letter-spacing: -.02em;
+  margin-bottom: 8px;
+}
+.page-title p {
+  font-size: 15px;
+  color: #3d4a66;
 }
 
 .menu-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 40px;
-  max-width: 900px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  max-width: 760px;
   width: 100%;
-  padding: 40px;
-  animation: gridFadeIn 1s ease-out;
 }
 
-@keyframes gridFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(50px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.menu-item {
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(15px);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+/* ── Cards ── */
+.menu-card {
   position: relative;
+  padding: 36px 32px;
+  background: #161b27;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 18px;
+  cursor: pointer;
+  transition: transform .22s, border-color .22s, box-shadow .22s;
   overflow: hidden;
-  animation: cardSlideIn 0.8s ease-out both;
+  animation: fadeUp .6s ease-out both;
 }
+.menu-card:nth-child(1) { animation-delay: .08s; }
+.menu-card:nth-child(2) { animation-delay: .16s; }
 
-.menu-item:nth-child(1) { animation-delay: 0.1s; }
-.menu-item:nth-child(2) { animation-delay: 0.2s; }
-
-@keyframes cardSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(60px) rotateX(10deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
-  }
-}
-
-.menu-item::before {
+/* shimmer on hover */
+.menu-card::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-  transition: left 0.6s;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.03) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity .22s;
+}
+.menu-card:hover::before { opacity: 1; }
+
+.menu-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(61,126,255,.25);
+  box-shadow: 0 20px 48px rgba(0,0,0,.4), 0 0 0 1px rgba(61,126,255,.1);
 }
 
-.menu-item:hover::before {
-  left: 100%;
+.card-icon {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.chat-icon {
+  background: rgba(61,126,255,.1);
+  border: 1px solid rgba(61,126,255,.18);
+}
+.img-icon {
+  background: rgba(94,223,255,.08);
+  border: 1px solid rgba(94,223,255,.16);
 }
 
-.menu-item:hover {
-  transform: translateY(-15px) scale(1.05);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+.menu-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e8eaf0;
+  margin-bottom: 10px;
+  letter-spacing: -.01em;
 }
-
-.card-content {
-  text-align: center;
-  padding: 50px 30px;
-  position: relative;
-  z-index: 1;
-}
-
-.el-icon {
-  display: block;
-  margin: 0 auto 20px;
-  transition: all 0.3s ease;
-}
-
-.menu-item:hover .el-icon {
-  transform: scale(1.2) rotate(5deg);
-}
-
-.card-content h3 {
-  margin: 0 0 15px 0;
-  color: #2c3e50;
-  font-size: 24px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.menu-item:hover h3 {
-  color: #409eff;
-  transform: translateY(-5px);
-}
-
-.card-content p {
-  margin: 0;
-  color: #7f8c8d;
-  font-size: 16px;
+.menu-card p {
+  font-size: 13.5px;
+  color: #5a6480;
   line-height: 1.6;
-  transition: all 0.3s ease;
+  margin-bottom: 24px;
 }
 
-.menu-item:hover p {
-  color: #34495e;
-  transform: translateY(-3px);
+.card-arrow {
+  font-size: 18px;
+  color: #3d4a66;
+  transition: transform .2s, color .2s;
+}
+.menu-card:hover .card-arrow {
+  transform: translateX(4px);
+  color: #6aa3ff;
 }
 </style>
