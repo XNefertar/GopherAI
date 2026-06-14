@@ -13,7 +13,8 @@
           :class="['session-item', { active: currentSessionId === session.id }]"
           @click="switchSession(session.id)"
         >
-          {{ session.name || `会话 ${session.id}` }}
+          <span class="session-name">{{ session.name || `会话 ${session.id}` }}</span>
+          <button class="session-delete-btn" @click.stop="deleteSession(session.id)" title="删除会话">×</button>
         </li>
       </ul>
     </div>
@@ -865,6 +866,43 @@ export default {
       }
     }
 
+    const deleteSession = async (sessionId) => {
+      try {
+        await ElMessageBox.confirm('确定要删除该会话吗？删除后不可恢复。', '删除确认', {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+
+        const response = await api.delete('/AI/chat/session', {
+          data: { sessionId: String(sessionId) }
+        })
+
+        if (response.data && response.data.status_code === 1000) {
+          ElMessage.success('会话已删除')
+          delete sessions.value[sessionId]
+
+          // 如果删除的是当前会话，切换到其他会话或新建
+          if (currentSessionId.value === sessionId) {
+            const remaining = Object.keys(sessions.value)
+            if (remaining.length > 0) {
+              switchSession(remaining[0])
+            } else {
+              currentSessionId.value = null
+              currentMessages.value = []
+            }
+          }
+        } else {
+          ElMessage.error(response.data?.status_msg || '删除失败')
+        }
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          console.error('Delete session error:', error)
+          ElMessage.error('删除会话失败')
+        }
+      }
+    }
+
     onMounted(async () => {
       await Promise.all([
         loadModelOptions(),
@@ -909,7 +947,8 @@ export default {
       handleKBChange,
       refreshKnowledgeBases,
       createKnowledgeBase,
-      removeKBFile
+      removeKBFile,
+      deleteSession
     }
   }
 }
@@ -1020,6 +1059,57 @@ export default {
   transition: all 0.2s ease;
   position: relative;
   color: #2c3e50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.session-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-delete-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(245, 108, 108, 0.12);
+  color: #f56c6c;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.session-item:hover .session-delete-btn {
+  opacity: 1;
+}
+
+.session-delete-btn:hover {
+  background: #f56c6c;
+  color: white;
+  transform: scale(1.1);
+}
+
+.session-item.active .session-delete-btn {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.session-item.active .session-delete-btn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .session-item.active {

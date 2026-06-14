@@ -12,18 +12,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-	type (
-		GetUserSessionsResponse struct {
-			controller.Response
-			Sessions []model.SessionInfo `json:"sessions,omitempty"`
-		}
-		GetChatModelsResponse struct {
-			controller.Response
-			DefaultModelType string                     `json:"defaultModelType,omitempty"`
-			Models           []aihelper.ModelDescriptor `json:"models,omitempty"`
-		}
-		CreateSessionAndSendMessageRequest struct {
-
+type (
+	GetUserSessionsResponse struct {
+		controller.Response
+		Sessions []model.SessionInfo `json:"sessions,omitempty"`
+	}
+	GetChatModelsResponse struct {
+		controller.Response
+		DefaultModelType string                     `json:"defaultModelType,omitempty"`
+		Models           []aihelper.ModelDescriptor `json:"models,omitempty"`
+	}
+	CreateSessionAndSendMessageRequest struct {
 		UserQuestion string `json:"question" binding:"required"`  // 用户问题;
 		ModelType    string `json:"modelType" binding:"required"` // 模型类型;
 		KBID         string `json:"kbID,omitempty"`
@@ -52,6 +51,10 @@ import (
 	ChatHistoryResponse struct {
 		History []model.History `json:"history"`
 		controller.Response
+	}
+
+	DeleteSessionRequest struct {
+		SessionID string `json:"sessionId" binding:"required"`
 	}
 )
 
@@ -212,5 +215,24 @@ func ChatHistory(c *gin.Context) {
 
 	res.Success()
 	res.History = history
+	c.JSON(http.StatusOK, res)
+}
+
+func DeleteSession(c *gin.Context) {
+	req := new(DeleteSessionRequest)
+	res := new(controller.Response)
+	userName := c.GetString("userName")
+	if err := c.ShouldBindJSON(req); err != nil {
+		c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidParams))
+		return
+	}
+
+	statusCode := session.DeleteSession(c.Request.Context(), userName, req.SessionID)
+	if statusCode != code.CodeSuccess {
+		c.JSON(http.StatusOK, res.CodeOf(statusCode))
+		return
+	}
+
+	res.Success()
 	c.JSON(http.StatusOK, res)
 }

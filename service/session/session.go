@@ -3,13 +3,16 @@ package session
 import (
 	"GopherAI/common/aihelper"
 	"GopherAI/common/code"
+	"GopherAI/common/logger"
 	"GopherAI/dao/session"
+	sessionDao "GopherAI/dao/session"
 	"GopherAI/model"
 	"context"
 	"log"
 	"net/http"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
@@ -230,4 +233,23 @@ func GetChatHistory(userName string, sessionID string) ([]model.History, code.Co
 
 func ChatStreamSend(ctx context.Context, userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
 	return StreamMessageToExistingSession(ctx, userName, sessionID, userQuestion, modelType, writer)
+}
+
+func DeleteSession(ctx context.Context, userName, sessionID string) code.Code {
+	log := logger.With("userName", userName, "sessionID", sessionID)
+
+	if err := sessionDao.SoftDeleteSession(ctx, sessionID, userName); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			log.Warn("session not found or not owned by user")
+			return code.CodeSessionNotExist
+		}
+		log.Error("SoftDeleteSession failed", "error", err)
+		return code.CodeServerBusy
+	}
+
+	manager := aihelper.GetGlobalManager()
+	manager.RemoveAIHelper(userName, sessionID)
+
+	log.Info("session deleted")
+	return code.CodeSuccess
 }
