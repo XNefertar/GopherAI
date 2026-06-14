@@ -4,6 +4,7 @@ import (
 	"GopherAI/common/aihelper"
 	"GopherAI/common/code"
 	"GopherAI/common/logger"
+	messageDao "GopherAI/dao/message"
 	"GopherAI/dao/session"
 	sessionDao "GopherAI/dao/session"
 	"GopherAI/model"
@@ -245,6 +246,12 @@ func DeleteSession(ctx context.Context, userName, sessionID string) code.Code {
 		}
 		log.Error("SoftDeleteSession failed", "error", err)
 		return code.CodeServerBusy
+	}
+
+	if deleted, delErr := messageDao.HardDeleteMessageBySessionID(ctx, sessionID); delErr != nil {
+		log.Warn("delete messages failed", "error", delErr)
+	} else {
+		log.Info("session deleted", "deletedMessages", deleted)
 	}
 
 	manager := aihelper.GetGlobalManager()
