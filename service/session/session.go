@@ -49,60 +49,69 @@ func GetUserSessionsByUserName(ctx context.Context, userName string) ([]model.Se
 	return infos, nil
 }
 
-func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuestion, modelType string) (string, string, code.Code) {
+func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuestion, modelType string) (string, string, string, code.Code) {
 	//1：创建一个新的会话
 	newSession := &model.Session{
 		ID:         uuid.New().String(),
 		UserName:   userName,
-		Title:      userQuestion, // 先用原问题占位，后续异步更新为 AI 生成的标题
+		Title:      userQuestion, // 先用原问题占位，后续并发更新为 AI 生成的标题
 		ActiveKBID: kbID,
 	}
 	createdSession, err := session.CreateSession(ctx, newSession)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage CreateSession error:", err)
-		return "", "", code.CodeServerBusy
+		return "", "", "", code.CodeServerBusy
 	}
 
-	// 异步生成精简标题
-	go generateSessionTitle(createdSession.ID, userQuestion)
+	// 并发：GLM 生成标题 & AI 生成回复，取 max 耗时
+	type titleResult struct{ title string }
+	titleCh := make(chan titleResult, 1)
+	go func() {
+		t := generateSessionTitleSync(createdSession.ID, userQuestion)
+		titleCh <- titleResult{title: t}
+	}()
 
 	//2：获取AIHelper并通过其管理消息
 	manager := aihelper.GetGlobalManager()
 
+	var aiResponse *model.Message
+	var aiErr error
+
 	// modelType=auto 时走混合路由器：根据问题特征自动选择具体模型，实现成本优化。
 	if modelType == aihelper.ModelTypeAuto {
-		helper, _, err := manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, createdSession.ID, userQuestion, false)
-		if err != nil {
-			log.Println("CreateSessionAndSendMessage auto route error:", err)
-			return "", "", code.AIModelFail
+		helper, _, aerr := manager.GetOrCreateAIHelperWithAutoRoute(ctx, userName, createdSession.ID, userQuestion, false)
+		if aerr != nil {
+			log.Println("CreateSessionAndSendMessage auto route error:", aerr)
+			return "", "", "", code.AIModelFail
 		}
-		aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
-		if err_ != nil {
-			log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
-			return "", "", code.AIModelFail
+		aiResponse, aiErr = helper.GenerateResponse(ctx, userName, userQuestion)
+	} else {
+		opts, optsErr := aihelper.BuildSessionCreateOptions(modelType, userName, createdSession.ActiveKBID)
+		if optsErr != nil {
+			log.Println("CreateSessionAndSendMessage BuildSessionCreateOptions error:", optsErr)
+			return "", "", "", code.AIModelFail
 		}
-		return createdSession.ID, aiResponse.Content, code.CodeSuccess
+		helper, oerr := manager.GetOrCreateAIHelper(ctx, userName, createdSession.ID, opts)
+		if oerr != nil {
+			log.Println("CreateSessionAndSendMessage GetOrCreateAIHelper error:", oerr)
+			return "", "", "", code.AIModelFail
+		}
+		aiResponse, aiErr = helper.GenerateResponse(ctx, userName, userQuestion)
 	}
 
-	opts, err := aihelper.BuildSessionCreateOptions(modelType, userName, createdSession.ActiveKBID)
-	if err != nil {
-		log.Println("CreateSessionAndSendMessage BuildSessionCreateOptions error:", err)
-		return "", "", code.AIModelFail
-	}
-	helper, err := manager.GetOrCreateAIHelper(ctx, userName, createdSession.ID, opts)
-	if err != nil {
-		log.Println("CreateSessionAndSendMessage GetOrCreateAIHelper error:", err)
-		return "", "", code.AIModelFail
+	if aiErr != nil {
+		log.Println("CreateSessionAndSendMessage GenerateResponse error:", aiErr)
+		return "", "", "", code.AIModelFail
 	}
 
-	//3：生成AI回复
-	aiResponse, err_ := helper.GenerateResponse(ctx, userName, userQuestion)
-	if err_ != nil {
-		log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
-		return "", "", code.AIModelFail
+	// 等待 GLM 标题生成结果（通常比 AI 回复快得多）
+	title := <-titleCh
+	if title.title != "" {
+		_ = sessionDao.UpdateSessionTitle(context.Background(), createdSession.ID, title.title)
+		return createdSession.ID, title.title, aiResponse.Content, code.CodeSuccess
 	}
 
-	return createdSession.ID, aiResponse.Content, code.CodeSuccess
+	return createdSession.ID, userQuestion, aiResponse.Content, code.CodeSuccess
 }
 
 func CreateStreamSessionOnly(ctx context.Context, userName, kbID, userQuestion string) (string, code.Code) {
@@ -283,11 +292,11 @@ func DeleteSession(ctx context.Context, userName, sessionID string) code.Code {
 	return code.CodeSuccess
 }
 
-// generateSessionTitle 异步调用 GLM-4-Flash 生成精简标题并更新数据库
+// generateSessionTitle 异步调用 GLM-4-Flash 生成精简标题并更新数据库（供流式接口使用）
 func generateSessionTitle(sessionID, userQuestion string) {
 	title := titlesummary.GenerateTitle(context.Background(), userQuestion)
 	if title == "" {
-		return // 生成失败则保留原标题（用户原问题）
+		return
 	}
 
 	if err := sessionDao.UpdateSessionTitle(context.Background(), sessionID, title); err != nil {
@@ -295,4 +304,14 @@ func generateSessionTitle(sessionID, userQuestion string) {
 	} else {
 		log.Printf("generateSessionTitle success: session=%s title=%q", sessionID, title)
 	}
+}
+
+// generateSessionTitleSync 同步调用 GLM-4-Flash 生成精简标题（仅生成，不写 DB）
+func generateSessionTitleSync(sessionID, userQuestion string) string {
+	title := titlesummary.GenerateTitle(context.Background(), userQuestion)
+	if title == "" {
+		return ""
+	}
+	log.Printf("generateSessionTitleSync: session=%s title=%q", sessionID, title)
+	return title
 }

@@ -766,7 +766,7 @@ export default {
 
           sessions.value[sessionId] = {
             id: sessionId,
-            name: question.length > 20 ? question.slice(0, 20) + '...' : question,
+            name: response.data.title || question.slice(0, 20),
             messages: [{ role: 'user', content: question }, aiMessage]
           }
           currentSessionId.value = sessionId

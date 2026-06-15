@@ -36,7 +36,7 @@ type chatResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// GenerateTitle 使用 GLM-4-Flash 免费 API 从用户的问题总结出标题（5~10 字）
+// GenerateTitle 使用 GLM 免费 API 从用户的问题总结出标题（5~10 字），内置重试
 func GenerateTitle(ctx context.Context, userQuestion string) string {
 	apiKey := strings.TrimSpace(os.Getenv("TITLE_API_KEY"))
 	baseURL := strings.TrimSpace(os.Getenv("TITLE_BASE_URL"))
@@ -47,9 +47,26 @@ func GenerateTitle(ctx context.Context, userQuestion string) string {
 		return ""
 	}
 
+	// 最多重试 2 次，每次间隔递增
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			log.Printf("[titlesummary] retry attempt %d/2", attempt)
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+
+		title := generateOnce(ctx, baseURL, apiKey, model, userQuestion)
+		if title != "" {
+			return title
+		}
+	}
+
+	return ""
+}
+
+// generateOnce 单次调用 GLM API 生成标题
+func generateOnce(ctx context.Context, baseURL, apiKey, model, userQuestion string) string {
 	prompt := fmt.Sprintf(
-		`你是一个会话标题生成器。请用 5~10 个字概括用户的第一条问题，直接输出标题，不要多余解释。`+
-			`\n用户问题：%s`, userQuestion,
+		"你是一个会话标题生成器。请用 5~10 个字概括用户的第一条问题，直接输出标题，不要多余解释。\n用户问题：%s", userQuestion,
 	)
 
 	reqBody := chatRequest{
@@ -103,7 +120,6 @@ func GenerateTitle(ctx context.Context, userQuestion string) string {
 	}
 
 	title := strings.TrimSpace(result.Choices[0].Message.Content)
-	// 清理可能的引号和多余字符
 	title = strings.Trim(title, `"'「」『』【】`)
 	title = strings.TrimSpace(title)
 
