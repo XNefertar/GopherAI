@@ -552,6 +552,9 @@ export default {
         return
       }
 
+      // 兜底：如果没有任何活跃会话，自动创建一个
+      ensureActiveSession()
+
       if (!requireKBForNewRAGSession()) {
         return
       }
@@ -903,12 +906,25 @@ export default {
       }
     }
 
+    const ensureActiveSession = () => {
+      // 如果没有任何会话，自动创建一个临时会话，让用户可以直接开始对话
+      if (!currentSessionId.value || !sessions.value[currentSessionId.value]) {
+        createNewSession()
+      }
+    }
+
     onMounted(async () => {
+      await loadSessions()
+      const hasSessions = Object.keys(sessions.value).length > 0
       await Promise.all([
         loadModelOptions(),
-        loadSessions(),
         loadKnowledgeBases(true)
       ])
+
+      // 没有历史会话时自动进入临时会话模式
+      if (!hasSessions) {
+        ensureActiveSession()
+      }
     })
 
     return {
@@ -948,7 +964,8 @@ export default {
       refreshKnowledgeBases,
       createKnowledgeBase,
       removeKBFile,
-      deleteSession
+      deleteSession,
+      ensureActiveSession
     }
   }
 }
