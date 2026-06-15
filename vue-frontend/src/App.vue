@@ -15,7 +15,7 @@ export default {
 </script>
 
 <style>
-* {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -23,82 +23,54 @@ export default {
 
 html, body {
   height: 100%;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  background: #0f1117;
+  font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f7fa;
+  color: #e8eaf0;
 }
 
-#app {
-  height: 100%;
-}
+#app { height: 100%; }
 
-/* 页面切换动画 */
+/* ── page transitions ── */
 .page-enter-active,
 .page-leave-active {
-  transition: all 0.4s cubic-bezier(0.55, 0, 0.1, 1);
+  transition: opacity .25s ease, transform .25s ease;
 }
+.page-enter-from { opacity: 0; transform: translateY(10px); }
+.page-leave-to   { opacity: 0; transform: translateY(-10px); }
 
-.page-enter-from {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-.page-leave-to {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-/* 全局滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
-}
-
+/* ── global scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
+  background: rgba(255,255,255,.1);
   border-radius: 4px;
-  transition: background 0.3s ease;
 }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.18); }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.5);
-}
-
-/* Element Plus 组件样式覆盖 */
-.el-button {
-  font-weight: 500;
-  border-radius: 8px;
-}
-
-.el-input {
-  border-radius: 8px;
-}
-
-.el-card {
-  border-radius: 12px;
-}
-
+/* ── Element Plus dark overrides ── */
 .el-message {
-  border-radius: 8px;
+  background: #1e2535 !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
+  border-radius: 10px !important;
 }
+.el-message__content { color: #c8cfe0 !important; }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .page-enter-from,
-  .page-leave-to {
-    transform: translateX(0);
-    opacity: 0;
-  }
-
-  .page-enter-active,
-  .page-leave-active {
-    transition: opacity 0.3s ease;
-  }
+.el-message-box {
+  background: #161b27 !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6) !important;
 }
+.el-message-box__title { color: #e8eaf0 !important; }
+.el-message-box__message p { color: #8892aa !important; }
+.el-message-box__input .el-input__inner {
+  background: rgba(255,255,255,.05) !important;
+  border-color: rgba(255,255,255,.1) !important;
+  color: #e8eaf0 !important;
+}
+.el-overlay { background: rgba(0,0,0,.6) !important; }
 </style>
