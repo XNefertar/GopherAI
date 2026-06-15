@@ -134,6 +134,7 @@
 
 import { ref, nextTick, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { marked } from 'marked'
 import api from '../utils/api'
 
 export default {
@@ -392,11 +393,7 @@ export default {
 
     const renderMarkdown = (text) => {
       if (!text && text !== '') return ''
-      return String(text)
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`(.*?)`/g, '<code>$1</code>')
-        .replace(/\n/g, '<br>')
+      return marked.parse(text)
     }
 
     const playTTS = async (text) => {
@@ -1467,6 +1464,78 @@ export default {
   border-radius: 4px;
   font-size: 13px;
   font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* 代码块 */
+.message-content pre {
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.message-content pre code {
+  background: none;
+  color: #e8eaf0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 标题 */
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4 {
+  margin: 14px 0 8px;
+  color: #e8eaf0;
+  line-height: 1.35;
+}
+.message-content h1 { font-size: 20px; }
+.message-content h2 { font-size: 17px; }
+.message-content h3 { font-size: 15px; }
+
+/* 列表 */
+.message-content ul,
+.message-content ol {
+  padding-left: 22px;
+  margin: 6px 0;
+}
+.message-content li { margin: 3px 0; }
+
+/* 表格 */
+.message-content table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+  font-size: 13px;
+}
+.message-content th,
+.message-content td {
+  border: 1px solid rgba(255,255,255,.12);
+  padding: 6px 10px;
+  text-align: left;
+}
+.message-content th {
+  background: rgba(255,255,255,.06);
+  font-weight: 600;
+}
+
+/* 引用块 */
+.message-content blockquote {
+  border-left: 3px solid rgba(94,223,255,.4);
+  padding: 4px 12px;
+  margin: 8px 0;
+  color: rgba(232,234,240,.7);
+  background: rgba(94,223,255,.04);
+  border-radius: 0 6px 6px 0;
+}
+
+/* 行内链接 */
+.message-content a {
+  color: #5edfff;
+  text-decoration: underline;
 }
 
 /* ─── Input ─────────────────────────────────────────────────── */
