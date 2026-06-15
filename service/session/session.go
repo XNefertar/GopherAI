@@ -4,6 +4,7 @@ import (
 	"GopherAI/common/aihelper"
 	"GopherAI/common/code"
 	"GopherAI/common/logger"
+	"GopherAI/common/titlesummary"
 	messageDao "GopherAI/dao/message"
 	"GopherAI/dao/session"
 	sessionDao "GopherAI/dao/session"
@@ -16,22 +17,36 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
-	//获取用户的所有会话ID
-
-	manager := aihelper.GetGlobalManager()
-	Sessions := manager.GetUserSessions(userName)
-
-	var SessionInfos []model.SessionInfo
-
-	for _, session := range Sessions {
-		SessionInfos = append(SessionInfos, model.SessionInfo{
-			SessionID: session,
-			Title:     session, // 暂时用sessionID作为标题，后续重构需要的时候可以更改
-		})
+func GetUserSessionsByUserName(ctx context.Context, userName string) ([]model.SessionInfo, error) {
+	// 从数据库读取会话以获取准确的标题
+	sessions, err := sessionDao.GetSessionsByUserName(ctx, userName)
+	if err != nil {
+		log.Printf("GetUserSessionsByUserName db error: %v", err)
+		// fallback: 从内存管理器获取 session ID
+		manager := aihelper.GetGlobalManager()
+		ids := manager.GetUserSessions(userName)
+		infos := make([]model.SessionInfo, 0, len(ids))
+		for _, sid := range ids {
+			infos = append(infos, model.SessionInfo{
+				SessionID: sid,
+				Title:     sid, // fallback
+			})
+		}
+		return infos, nil
 	}
 
-	return SessionInfos, nil
+	infos := make([]model.SessionInfo, 0, len(sessions))
+	for _, s := range sessions {
+		title := s.Title
+		if title == "" {
+			title = s.ID
+		}
+		infos = append(infos, model.SessionInfo{
+			SessionID: s.ID,
+			Title:     title,
+		})
+	}
+	return infos, nil
 }
 
 func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuestion, modelType string) (string, string, code.Code) {
@@ -39,7 +54,7 @@ func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuesti
 	newSession := &model.Session{
 		ID:         uuid.New().String(),
 		UserName:   userName,
-		Title:      userQuestion, // 可以根据需求设置标题，这边暂时用用户第一次的问题作为标题
+		Title:      userQuestion, // 先用原问题占位，后续异步更新为 AI 生成的标题
 		ActiveKBID: kbID,
 	}
 	createdSession, err := session.CreateSession(ctx, newSession)
@@ -47,6 +62,9 @@ func CreateSessionAndSendMessage(ctx context.Context, userName, kbID, userQuesti
 		log.Println("CreateSessionAndSendMessage CreateSession error:", err)
 		return "", "", code.CodeServerBusy
 	}
+
+	// 异步生成精简标题
+	go generateSessionTitle(createdSession.ID, userQuestion)
 
 	//2：获取AIHelper并通过其管理消息
 	manager := aihelper.GetGlobalManager()
@@ -99,6 +117,10 @@ func CreateStreamSessionOnly(ctx context.Context, userName, kbID, userQuestion s
 		log.Println("CreateStreamSessionOnly CreateSession error:", err)
 		return "", code.CodeServerBusy
 	}
+
+	// 异步生成精简标题
+	go generateSessionTitle(createdSession.ID, userQuestion)
+
 	return createdSession.ID, code.CodeSuccess
 }
 
@@ -259,4 +281,18 @@ func DeleteSession(ctx context.Context, userName, sessionID string) code.Code {
 
 	log.Info("session deleted")
 	return code.CodeSuccess
+}
+
+// generateSessionTitle 异步调用 GLM-4-Flash 生成精简标题并更新数据库
+func generateSessionTitle(sessionID, userQuestion string) {
+	title := titlesummary.GenerateTitle(context.Background(), userQuestion)
+	if title == "" {
+		return // 生成失败则保留原标题（用户原问题）
+	}
+
+	if err := sessionDao.UpdateSessionTitle(context.Background(), sessionID, title); err != nil {
+		log.Printf("generateSessionTitle update failed: session=%s err=%v", sessionID, err)
+	} else {
+		log.Printf("generateSessionTitle success: session=%s title=%q", sessionID, title)
+	}
 }

@@ -688,9 +688,10 @@ export default {
                     const newSid = String(parsed.sessionId)
                     console.log('[SSE] Session ID:', newSid)
                     if (tempSession.value) {
+                      const initialName = question.length > 20 ? question.slice(0, 20) + '...' : question
                       sessions.value[newSid] = {
                         id: newSid,
-                        name: '新会话',
+                        name: initialName,
                         messages: [...currentMessages.value]
                       }
                       currentSessionId.value = newSid
@@ -765,7 +766,7 @@ export default {
 
           sessions.value[sessionId] = {
             id: sessionId,
-            name: '新会话',
+            name: question.length > 20 ? question.slice(0, 20) + '...' : question,
             messages: [{ role: 'user', content: question }, aiMessage]
           }
           currentSessionId.value = sessionId

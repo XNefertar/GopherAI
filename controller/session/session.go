@@ -62,7 +62,7 @@ func GetUserSessionsByUserName(c *gin.Context) {
 	res := new(GetUserSessionsResponse)
 	userName := c.GetString("userName") // From JWT middleware
 
-	userSessions, err := session.GetUserSessionsByUserName(userName)
+	userSessions, err := session.GetUserSessionsByUserName(c.Request.Context(), userName)
 	if err != nil {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeServerBusy))
 		return
