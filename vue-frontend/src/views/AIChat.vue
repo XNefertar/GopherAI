@@ -103,7 +103,7 @@
             <button v-if="message.role === 'assistant'" class="tts-btn" @click="playTTS(message.content)">🔊</button>
             <span v-if="message.meta && message.meta.status === 'streaming'" class="streaming-indicator"> ··</span>
           </div>
-          <div class="message-content" v-html="renderMarkdown(message.content)"></div>
+          <div class="message-content" v-html="renderMarkdown(message.content, message.meta && message.meta.status === 'streaming')"></div>
         </div>
       </div>
 
@@ -391,8 +391,21 @@ export default {
       return true
     }
 
-    const renderMarkdown = (text) => {
+    const renderMarkdown = (text, isStreaming) => {
       if (!text && text !== '') return ''
+
+      if (isStreaming) {
+        // 流式渲染：仅处理基础内联格式 + 保留换行，避免未闭合代码块导致显示错乱
+        return String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+          .replace(/`(.*?)`/g, '<code>$1</code>')
+          .replace(/\n/g, '<br>')
+      }
+
       return marked.parse(text)
     }
 
@@ -1455,46 +1468,96 @@ export default {
 .message-content {
   white-space: pre-wrap;
   word-break: break-word;
+  line-height: 1.65;
+  color: #d1d5db;
 }
 
+/* 段落间距 */
+.message-content p {
+  margin: 0 0 8px;
+}
+.message-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* 行内代码 */
 .message-content code {
-  background: rgba(94,223,255,.08);
-  color: #5edfff;
-  padding: 1px 5px;
+  background: rgba(203,139,255,.12);
+  color: #d4a0ff;
+  padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
   font-family: "JetBrains Mono", "Fira Code", monospace;
 }
 
-/* 代码块 */
+/* 代码块 — 深色底 + 圆角，与正文强区分 */
 .message-content pre {
-  background: rgba(0,0,0,.35);
+  background: #0d1117;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 10px;
-  padding: 14px 16px;
-  margin: 8px 0;
+  padding: 0;
+  margin: 12px 0;
   overflow-x: auto;
+  position: relative;
 }
 .message-content pre code {
+  display: block;
   background: none;
-  color: #e8eaf0;
-  padding: 0;
+  color: #c9d1d9;
+  padding: 14px 16px;
   font-size: 13px;
   line-height: 1.6;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  border-radius: 0;
 }
+
+/* 代码块语言标签 */
+.message-content pre[class]::before,
+.message-content pre:has(code[class])::before {
+  content: attr(data-language, none);
+  display: block;
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.35);
+  font-size: 11px;
+  padding: 4px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-family: "JetBrains Mono", monospace;
+}
+.message-content pre:has(code[class*="language-bash"])::before,
+.message-content pre:has(code[class*="language-shell"])::before,
+.message-content pre:has(code[class*="language-sh"])::before     { content: "Shell"; }
+.message-content pre:has(code[class*="language-cpp"])::before      { content: "C++"; }
+.message-content pre:has(code[class*="language-python"])::before   { content: "Python"; }
+.message-content pre:has(code[class*="language-go"])::before       { content: "Go"; }
+.message-content pre:has(code[class*="language-javascript"])::before { content: "JavaScript"; }
+.message-content pre:has(code[class*="language-typescript"])::before { content: "TypeScript"; }
+.message-content pre:has(code[class*="language-json"])::before     { content: "JSON"; }
+.message-content pre:has(code[class*="language-sql"])::before      { content: "SQL"; }
+.message-content pre:has(code[class*="language-yaml"])::before     { content: "YAML"; }
+.message-content pre:has(code[class*="language-html"])::before     { content: "HTML"; }
+.message-content pre:has(code[class*="language-css"])::before      { content: "CSS"; }
+.message-content pre:has(code[class*="language-java"])::before     { content: "Java"; }
+.message-content pre:has(code[class*="language-rust"])::before     { content: "Rust"; }
+.message-content pre:has(code[class*="language-md"])::before,
+.message-content pre:has(code[class*="language-markdown"])::before { content: "Markdown"; }
+.message-content pre:has(code[class*="language-"])::before         { content: none; }
 
 /* 标题 */
 .message-content h1,
 .message-content h2,
 .message-content h3,
 .message-content h4 {
-  margin: 14px 0 8px;
+  margin: 16px 0 8px;
   color: #e8eaf0;
   line-height: 1.35;
+  font-weight: 600;
 }
-.message-content h1 { font-size: 20px; }
+.message-content h1 { font-size: 20px; border-bottom: 1px solid rgba(255,255,255,.08); padding-bottom: 6px; }
 .message-content h2 { font-size: 17px; }
-.message-content h3 { font-size: 15px; }
+.message-content h3 { font-size: 15px; color: #d1d5db; }
+.message-content h4 { font-size: 14px; color: #9ca3af; }
 
 /* 列表 */
 .message-content ul,
@@ -1503,11 +1566,13 @@ export default {
   margin: 6px 0;
 }
 .message-content li { margin: 3px 0; }
+.message-content ul { list-style: disc; }
+.message-content ol { list-style: decimal; }
 
 /* 表格 */
 .message-content table {
   border-collapse: collapse;
-  margin: 8px 0;
+  margin: 10px 0;
   width: 100%;
   font-size: 13px;
 }
@@ -1521,21 +1586,32 @@ export default {
   background: rgba(255,255,255,.06);
   font-weight: 600;
 }
+.message-content tr:nth-child(even) td {
+  background: rgba(255,255,255,.02);
+}
 
 /* 引用块 */
 .message-content blockquote {
-  border-left: 3px solid rgba(94,223,255,.4);
-  padding: 4px 12px;
-  margin: 8px 0;
-  color: rgba(232,234,240,.7);
-  background: rgba(94,223,255,.04);
+  border-left: 3px solid rgba(139,92,246,.5);
+  padding: 6px 14px;
+  margin: 10px 0;
+  color: rgba(209,213,219,.8);
+  background: rgba(139,92,246,.06);
   border-radius: 0 6px 6px 0;
+}
+
+/* 分割线 */
+.message-content hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,.08);
+  margin: 16px 0;
 }
 
 /* 行内链接 */
 .message-content a {
-  color: #5edfff;
+  color: #818cf8;
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ─── Input ─────────────────────────────────────────────────── */
