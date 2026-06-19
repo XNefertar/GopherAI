@@ -31,6 +31,7 @@ type (
 	CreateSessionAndSendMessageResponse struct {
 		AiInformation string `json:"Information,omitempty"` // AI回答
 		SessionID     string `json:"sessionId,omitempty"`   // 当前会话ID
+		Title         string `json:"title,omitempty"`       // 会话标题
 		controller.Response
 	}
 
@@ -62,7 +63,7 @@ func GetUserSessionsByUserName(c *gin.Context) {
 	res := new(GetUserSessionsResponse)
 	userName := c.GetString("userName") // From JWT middleware
 
-	userSessions, err := session.GetUserSessionsByUserName(userName)
+	userSessions, err := session.GetUserSessionsByUserName(c.Request.Context(), userName)
 	if err != nil {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeServerBusy))
 		return
@@ -89,8 +90,8 @@ func CreateSessionAndSendMessage(c *gin.Context) {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidParams))
 		return
 	}
-	//内部会创建会话并发送消息，并会将AI回答、当前会话返回
-	session_id, aiInformation, statusCode := session.CreateSessionAndSendMessage(c.Request.Context(), userName, req.KBID, req.UserQuestion, req.ModelType)
+	//内部会创建会话并发送消息，并会将AI回答、当前会话、标题返回
+	sessionID, title, aiInformation, statusCode := session.CreateSessionAndSendMessage(c.Request.Context(), userName, req.KBID, req.UserQuestion, req.ModelType)
 
 	if statusCode != code.CodeSuccess {
 		c.JSON(http.StatusOK, res.CodeOf(statusCode))
@@ -99,7 +100,8 @@ func CreateSessionAndSendMessage(c *gin.Context) {
 
 	res.Success()
 	res.AiInformation = aiInformation
-	res.SessionID = session_id
+	res.SessionID = sessionID
+	res.Title = title
 	c.JSON(http.StatusOK, res)
 }
 

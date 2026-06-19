@@ -9,9 +9,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetSessionsByUserName(ctx context.Context, UserName int64) ([]model.Session, error) {
+func GetSessionsByUserName(ctx context.Context, userName string) ([]model.Session, error) {
 	var sessions []model.Session
-	err := mysql.DB.WithContext(ctx).Where("user_name = ?", UserName).Find(&sessions).Error
+	err := mysql.DB.WithContext(ctx).Where("user_name = ?", userName).Order("updated_at DESC").Find(&sessions).Error
 	return sessions, err
 }
 
@@ -24,6 +24,12 @@ func GetSessionByID(ctx context.Context, sessionID string) (*model.Session, erro
 	var session model.Session
 	err := mysql.DB.WithContext(ctx).Where("id = ?", sessionID).First(&session).Error
 	return &session, err
+}
+
+func UpdateSessionTitle(ctx context.Context, sessionID, title string) error {
+	return mysql.DB.WithContext(ctx).Model(&model.Session{}).
+		Where("id = ?", sessionID).
+		Update("title", title).Error
 }
 
 func SoftDeleteSession(ctx context.Context, sessionID, userName string) error {
