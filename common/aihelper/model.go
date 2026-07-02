@@ -84,6 +84,78 @@ func (o *OpenAIModel) StreamResponse(ctx context.Context, messages []*schema.Mes
 
 func (o *OpenAIModel) GetModelType() string { return "1" }
 
+// =================== 视觉多模态工具函数 ===================
+
+// newVisionChatLLM 创建视觉多模态聊天模型。
+// 优先使用 VISION_* 环境变量，未配置则回退到 OPENAI_* 主模型。
+func newVisionChatLLM(ctx context.Context) (model.ToolCallingChatModel, error) {
+	key := strings.TrimSpace(os.Getenv("VISION_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	}
+	modelName := strings.TrimSpace(os.Getenv("VISION_MODEL_NAME"))
+	if modelName == "" {
+		modelName = strings.TrimSpace(os.Getenv("OPENAI_MODEL_NAME"))
+	}
+	baseURL := strings.TrimSpace(os.Getenv("VISION_BASE_URL"))
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+	}
+
+	if key == "" {
+		return nil, fmt.Errorf("VISION_API_KEY or OPENAI_API_KEY is empty")
+	}
+	if modelName == "" {
+		return nil, fmt.Errorf("VISION_MODEL_NAME or OPENAI_MODEL_NAME is empty")
+	}
+	if baseURL == "" {
+		return nil, fmt.Errorf("VISION_BASE_URL or OPENAI_BASE_URL is empty")
+	}
+
+	llm, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
+		BaseURL: baseURL,
+		Model:   modelName,
+		APIKey:  key,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create vision chat model failed: %v", err)
+	}
+	return llm, nil
+}
+
+// NewVisionLLM 对外暴露视觉模型创建。
+func NewVisionLLM(ctx context.Context) (model.ToolCallingChatModel, error) {
+	return newVisionChatLLM(ctx)
+}
+
+// StreamFromLLM 对任意 ToolCallingChatModel 执行流式调用，
+// 通过 cb 实时推送，最终返回聚合完整内容。
+func StreamFromLLM(ctx context.Context, llm model.ToolCallingChatModel, messages []*schema.Message, cb StreamCallback) (string, error) {
+	stream, err := llm.Stream(ctx, messages)
+	if err != nil {
+		return "", fmt.Errorf("llm stream failed: %v", err)
+	}
+	defer stream.Close()
+
+	var fullResp strings.Builder
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("llm stream recv failed: %v", err)
+		}
+		if len(msg.Content) > 0 {
+			fullResp.WriteString(msg.Content)
+			if cb != nil {
+				cb(msg.Content)
+			}
+		}
+	}
+	return fullResp.String(), nil
+}
+
 // =================== Ollama 实现 ===================
 
 // OllamaModel Ollama模型实现
