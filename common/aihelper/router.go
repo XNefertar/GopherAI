@@ -2,9 +2,9 @@ package aihelper
 
 import (
 	"GopherAI/dao/session"
+	appconfig "GopherAI/config"
 	"context"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -117,7 +117,7 @@ func (r *RuleBasedRouter) Route(ctx context.Context, userName, sessionID, questi
 	// 4. 低成本闲聊类：问候/极短问题走低成本模型
 	if hitAny(q, trivialKeywords) || length <= r.ShortQuestionThreshold {
 		// 若配置了 Ollama 本地模型，则优先使用本地推理，进一步降低成本
-		if os.Getenv("OLLAMA_MODEL_NAME") != "" {
+		if appconfig.GetConfig().Model.OllamaModelName != "" {
 			opts, err := buildOptionsForType(ModelTypeOllama, userName, sessionObj.ActiveKBID)
 			if err == nil {
 				return RouteDecision{ModelType: ModelTypeOllama, Reason: "rule:trivial_local", Options: opts}, nil

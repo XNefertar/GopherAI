@@ -207,12 +207,7 @@ func DeleteIndex(ctx context.Context, kbID string) error {
 }
 
 func getRAGEmbeddingAPIKey() string {
-	for _, key := range []string{"RAG_EMBEDDING_API_KEY", "RAG_API_KEY"} {
-		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-			return v
-		}
-	}
-	return ""
+	return config.GetConfig().Model.RagEmbeddingAPIKey
 }
 
 func getRAGEmbeddingAPIType() *embeddingArk.APIType {

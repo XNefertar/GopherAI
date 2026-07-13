@@ -2,13 +2,13 @@ package titlesummary
 
 import (
 	"bytes"
+	appconfig "GopherAI/config"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -38,9 +38,10 @@ type chatResponse struct {
 
 // GenerateTitle 使用 GLM 免费 API 从用户的问题总结出标题（5~10 字），内置重试
 func GenerateTitle(ctx context.Context, userQuestion string) string {
-	apiKey := strings.TrimSpace(os.Getenv("TITLE_API_KEY"))
-	baseURL := strings.TrimSpace(os.Getenv("TITLE_BASE_URL"))
-	model := strings.TrimSpace(os.Getenv("TITLE_MODEL_NAME"))
+	mc := appconfig.GetConfig().Model
+	apiKey := mc.TitleKey
+	baseURL := mc.TitleBaseURL
+	model := mc.TitleModel
 
 	if apiKey == "" || baseURL == "" || model == "" {
 		log.Println("[titlesummary] env TITLE_API_KEY / TITLE_BASE_URL / TITLE_MODEL_NAME not set, skip")
