@@ -2,12 +2,12 @@ package aihelper
 
 import (
 	"GopherAI/common/rag"
+	appconfig "GopherAI/config"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/cloudwego/eino-ext/components/model/ollama"
@@ -89,17 +89,18 @@ func (o *OpenAIModel) GetModelType() string { return "1" }
 // newVisionChatLLM 创建视觉多模态聊天模型。
 // 优先使用 VISION_* 环境变量，未配置则回退到 OPENAI_* 主模型。
 func newVisionChatLLM(ctx context.Context) (model.ToolCallingChatModel, error) {
-	key := strings.TrimSpace(os.Getenv("VISION_API_KEY"))
+	mc := appconfig.GetConfig().Model
+	key := mc.VisionKey
 	if key == "" {
-		key = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+		key = mc.OpenAIKey
 	}
-	modelName := strings.TrimSpace(os.Getenv("VISION_MODEL_NAME"))
+	modelName := mc.VisionModel
 	if modelName == "" {
-		modelName = strings.TrimSpace(os.Getenv("OPENAI_MODEL_NAME"))
+		modelName = mc.OpenAIModel
 	}
-	baseURL := strings.TrimSpace(os.Getenv("VISION_BASE_URL"))
+	baseURL := mc.VisionBaseURL
 	if baseURL == "" {
-		baseURL = strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+		baseURL = mc.OpenAIBaseURL
 	}
 
 	if key == "" {
@@ -215,9 +216,10 @@ type RAGModel struct {
 }
 
 func newMainChatLLM(ctx context.Context) (model.ToolCallingChatModel, error) {
-	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	modelName := strings.TrimSpace(os.Getenv("OPENAI_MODEL_NAME"))
-	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+	mc := appconfig.GetConfig().Model
+	key := mc.OpenAIKey
+	modelName := mc.OpenAIModel
+	baseURL := mc.OpenAIBaseURL
 
 	if key == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY is empty")

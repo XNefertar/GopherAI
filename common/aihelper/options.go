@@ -2,7 +2,8 @@ package aihelper
 
 import (
 	"fmt"
-	"os"
+
+	appconfig "GopherAI/config"
 )
 
 const (
@@ -73,14 +74,13 @@ func BuildSessionCreateOptions(modelType, userName, kbID string) (CreateOptions,
 		}
 		return MCPOptions{Username: userName}, nil
 	case ModelTypeOllama:
-		modelName := os.Getenv("OLLAMA_MODEL_NAME")
-		if modelName == "" {
+		mc := appconfig.GetConfig().Model
+		if mc.OllamaModelName == "" {
 			return nil, fmt.Errorf("Ollama model requires OLLAMA_MODEL_NAME")
 		}
-		baseURL := os.Getenv("OLLAMA_BASE_URL")
 		return OllamaOptions{
-			BaseURL:   baseURL,
-			ModelName: modelName,
+			BaseURL:   mc.OllamaBaseURL,
+			ModelName: mc.OllamaModelName,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported model type: %s", modelType)

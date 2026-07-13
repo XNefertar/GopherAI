@@ -3,7 +3,6 @@ package aihelper
 import (
 	"GopherAI/config"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 )
@@ -116,14 +115,15 @@ func resolveDefaultModelType(models []ModelDescriptor) string {
 }
 
 func validateMainChatConfig() (bool, string) {
+	mc := config.GetConfig().Model
 	missing := make([]string, 0, 3)
-	if !hasEnvValue("OPENAI_API_KEY") {
+	if mc.OpenAIKey == "" {
 		missing = append(missing, "OPENAI_API_KEY")
 	}
-	if !hasEnvValue("OPENAI_MODEL_NAME") {
+	if mc.OpenAIModel == "" {
 		missing = append(missing, "OPENAI_MODEL_NAME")
 	}
-	if !hasEnvValue("OPENAI_BASE_URL") {
+	if mc.OpenAIBaseURL == "" {
 		missing = append(missing, "OPENAI_BASE_URL")
 	}
 	if len(missing) > 0 {
@@ -138,8 +138,9 @@ func validateRAGConfig(mainReady bool, mainReason string) (bool, string) {
 	}
 
 	cfg := config.GetConfig().RagModelConfig
+	mc := config.GetConfig().Model
 	missing := make([]string, 0, 3)
-	if !hasAnyEnvValue("RAG_EMBEDDING_API_KEY", "RAG_API_KEY") {
+	if mc.RagEmbeddingAPIKey == "" {
 		missing = append(missing, "RAG_EMBEDDING_API_KEY")
 	}
 	if strings.TrimSpace(cfg.RagEmbeddingBaseURL) == "" {
@@ -162,11 +163,12 @@ func validateMCPConfig(mainReady bool, mainReason string) (bool, string) {
 }
 
 func validateOllamaConfig() (bool, string) {
+	mc := config.GetConfig().Model
 	missing := make([]string, 0, 2)
-	if !hasEnvValue("OLLAMA_MODEL_NAME") {
+	if mc.OllamaModelName == "" {
 		missing = append(missing, "OLLAMA_MODEL_NAME")
 	}
-	if !hasEnvValue("OLLAMA_BASE_URL") {
+	if mc.OllamaBaseURL == "" {
 		missing = append(missing, "OLLAMA_BASE_URL")
 	}
 	if len(missing) > 0 {
@@ -180,17 +182,4 @@ func validateAutoRouteConfig(mainReady bool, mainReason string) (bool, string) {
 		return false, mainReason
 	}
 	return true, ""
-}
-
-func hasEnvValue(key string) bool {
-	return strings.TrimSpace(os.Getenv(key)) != ""
-}
-
-func hasAnyEnvValue(keys ...string) bool {
-	for _, key := range keys {
-		if hasEnvValue(key) {
-			return true
-		}
-	}
-	return false
 }
