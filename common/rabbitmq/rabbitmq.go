@@ -85,17 +85,18 @@ func (r *RabbitMQ) Publish(message []byte) error {
 	)
 }
 
-// Consume 消费者
-// handle: 消息的消费业务函数，用于消费消息
-func (r *RabbitMQ) Consume(handle func(msg *amqp.Delivery) error) {
+// Consume 消费者（可被 Cancel 取消）。
+// handle: 消息的消费业务函数，用于消费消息；返回 nil 时自动 Ack，非 nil 时暂不重投（避免重复落库）。
+// consumerTag: 消费者标识，用于 Shutdown 时精确取消该消费者。
+func (r *RabbitMQ) Consume(consumerTag string, handle func(msg *amqp.Delivery) error) {
 	// 创建队列
 	q, err := r.channel.QueueDeclare(r.Key, false, false, false, false, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	// 接收消息
-	msgs, err := r.channel.Consume(q.Name, "", true, false, false, false, nil)
+	// 接收消息：autoAck=false，由业务成功后再显式 Ack，避免消费中进程退出导致消息丢失
+	msgs, err := r.channel.Consume(q.Name, consumerTag, false, false, false, false, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -103,7 +104,10 @@ func (r *RabbitMQ) Consume(handle func(msg *amqp.Delivery) error) {
 	// 处理消息
 	for msg := range msgs {
 		if err := handle(&msg); err != nil {
+			// 业务失败：仅打印，不 Ack 也不 Nack（保留在队列，待后续可靠性改造接入 DLX）
 			fmt.Println(err.Error())
+			continue
 		}
+		_ = msg.Ack(false)
 	}
 }
