@@ -22,13 +22,11 @@ func NewAIHelperManager() *AIHelperManager {
 
 // 获取或创建AIHelper
 func (m *AIHelperManager) GetOrCreateAIHelper(ctx context.Context, userName string, sessionID string, opts CreateOptions) (*AIHelper, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if opts == nil {
 		return nil, fmt.Errorf("create options is nil")
 	}
 
+	m.mu.Lock()
 	// 获取用户的会话映射
 	userHelpers, exists := m.helpers[userName]
 	if !exists {
@@ -41,24 +39,32 @@ func (m *AIHelperManager) GetOrCreateAIHelper(ctx context.Context, userName stri
 	factory := GetGlobalFactory()
 	if exists {
 		if helper.GetModelType() == opts.ModelType() {
-			return helper, nil
-		} else {
-			newModel, err := factory.CreateAIModel(ctx, opts)
-			if err != nil {
-				return nil, err
-			}
-			helper.SwitchModel(newModel)
+			m.mu.Unlock()
 			return helper, nil
 		}
+		m.mu.Unlock()
+		newModel, err := factory.CreateAIModel(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		helper.SwitchModel(newModel)
+		return helper, nil
 	}
 
 	// 创建新的AIHelper
 	helper, err := factory.CreateAIHelper(ctx, sessionID, opts)
 	if err != nil {
+		m.mu.Unlock()
 		return nil, err
 	}
-
 	userHelpers[sessionID] = helper
+	m.mu.Unlock()
+
+	// 锁外惰性加载历史：避免 DB 查询阻塞其他会话的并发创建。
+	// Hydrate 内部有 hydrated 标记保证幂等，即使并发重复创建也只加载一次。
+	if err := helper.Hydrate(ctx); err != nil {
+		log.Printf("[aihelper] hydrate session=%s failed: %v", sessionID, err)
+	}
 	return helper, nil
 }
 

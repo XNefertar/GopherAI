@@ -2,6 +2,7 @@ package aihelper
 
 import (
 	"GopherAI/common/rabbitmq"
+	"GopherAI/dao/message"
 	"GopherAI/model"
 	"GopherAI/utils"
 	"context"
@@ -16,6 +17,7 @@ type AIHelper struct {
 	//一个会话绑定一个AIHelper
 	SessionID string
 	saveFunc  func(*model.Message) (*model.Message, error)
+	hydrated  bool // 标记历史是否已从 DB 惰性加载，避免重复加载
 }
 
 // NewAIHelper 创建新的AIHelper实例
@@ -129,4 +131,38 @@ func (a *AIHelper) SwitchModel(newModel AIModel) {
 	a.mu.Lock()
 	a.model = newModel
 	a.mu.Unlock()
+}
+
+// Hydrate 惰性从 DB 加载会话历史到内存。
+//
+// 设计要点：
+//   - 仅放入内存、不回写 MQ（直接 append 而非 AddMessage），避免历史消息被重复发布到消息队列落库。
+//   - 使用 hydrated 标记 + double-check，保证并发下只加载一次。
+//   - 本方法在 AIHelperManager 的锁之外调用，因此只操作本 helper 自身的 mu，不持有 manager 锁，
+//     避免 DB 查询阻塞其他会话的并发创建。
+func (a *AIHelper) Hydrate(ctx context.Context) error {
+	a.mu.Lock()
+	if a.hydrated {
+		a.mu.Unlock()
+		return nil
+	}
+	a.mu.Unlock()
+
+	msgs, err := message.GetMessagesBySessionID(ctx, a.SessionID)
+	if err != nil {
+		return err
+	}
+
+	a.mu.Lock()
+	if a.hydrated { // double-check，防止并发重复加载
+		a.mu.Unlock()
+		return nil
+	}
+	for i := range msgs {
+		m := &msgs[i]
+		a.messages = append(a.messages, m)
+	}
+	a.hydrated = true
+	a.mu.Unlock()
+	return nil
 }
