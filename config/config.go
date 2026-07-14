@@ -70,6 +70,12 @@ type VoiceServiceConfig struct {
 	VoiceServiceSecretKey string `toml:"voiceServiceSecretKey"`
 }
 
+// SessionCacheConfig 会话内存缓存的容量治理配置（Phase 2 引入）。
+type SessionCacheConfig struct {
+	MaxSessions    int `toml:"maxSessions"`    // 内存中最多保留的会话数，超过则按 LRU 淘汰
+	IdleTimeoutSec int `toml:"idleTimeoutSec"` // 会话空闲超过该秒数则被后台回收
+}
+
 type Config struct {
 	EmailConfig        `toml:"emailConfig"`
 	RedisConfig        `toml:"redisConfig"`
@@ -79,6 +85,7 @@ type Config struct {
 	Rabbitmq           `toml:"rabbitmqConfig"`
 	RagModelConfig     `toml:"ragModelConfig"`
 	VoiceServiceConfig `toml:"voiceServiceConfig"`
+	SessionCache       SessionCacheConfig `toml:"sessionCacheConfig"`
 	// Model 来自环境变量，不参与 TOML 反序列化
 	Model ModelConfig `toml:"-"`
 }
