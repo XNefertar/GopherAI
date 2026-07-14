@@ -51,6 +51,14 @@ func Init() {
 
 }
 
+// Close 关闭 Redis 客户端连接，供应用优雅停机时调用。
+func Close() error {
+	if Rdb == nil {
+		return nil
+	}
+	return Rdb.Close()
+}
+
 func SetCaptchaForEmail(ctx context.Context, email, captcha string) error {
 	opCtx, cancel := withOperationTimeout(ctx)
 	defer cancel()

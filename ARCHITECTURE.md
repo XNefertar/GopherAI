@@ -188,12 +188,14 @@ GopherAI-v2/
 
 ### `main.go`
 
-- 读取配置
-- 初始化 MySQL
-- 从数据库预热会话消息到内存
-- 初始化 Redis
-- 初始化 RabbitMQ
-- 启动 Gin 服务
+- 仅作为进程入口，调用 `app.New().Run()`，不再手写初始化顺序与信号处理
+- 实际装配、启动、优雅停机逻辑收敛在 `app` 包（见 13.5 节）
+
+### `app/`
+
+- 应用生命周期骨架（Bootstrap）
+- `App.Run()`：按依赖顺序装配（MySQL → Redis → RabbitMQ → 会话预热 → HTTP），并在 goroutine 启动 HTTP 服务、主协程阻塞等待退出信号
+- `App.Shutdown()`：逆序优雅停机（HTTP → MQ 消费者 → Redis → MySQL），支持 `SIGINT/SIGTERM`
 
 ### `router/`
 
@@ -796,6 +798,48 @@ flowchart LR
 
 - 双向通信能力弱
 - 长连接治理不如专用网关成熟
+
+## 13.5 应用生命周期与优雅退出（已落地）
+
+### 决策内容
+
+将「依赖装配 → 运行 → 优雅停机」收敛为独立的 `app` 包，`main.go` 仅做 `app.New().Run()` 调用。进程通过 `signal.NotifyContext` 监听 `SIGINT/SIGTERM`，收到信号后按依赖逆序释放资源。
+
+### 改造前的问题
+
+原 `main.go` 采用「顺序初始化 + 主协程直接 `r.Run()` 阻塞」的裸奔模型：
+
+- 主协程被 HTTP 服务（`r.Run` 内部 `http.ListenAndServe`）霸占，没有余力监听退出信号；
+- 完全无 `signal.Notify`，进程只能被 `kill` / `Ctrl+C` 硬杀，退出时不释放任何资源；
+- MySQL 连接池、Redis、RabbitMQ 连接随进程直接死亡，存在连接泄漏；
+- MQ 消费者 `for range` 死循环无取消机制，`DestroyRabbitMQ` 直接 `conn.Close()`，消费中 goroutine 可能 panic / 丢消息；
+- 启动顺序存在竞态：`readDataFromDB()` 在 `redis.Init()` 与 `InitRabbitMQ()` 之前执行，而 `AIHelper` 的 `saveFunc` 依赖尚未初始化的 MQ 发布者。
+
+### 改造后设计
+
+- **生命周期骨架**：`App` 结构体封装 `Run()`（装配 → 启动 → 阻塞等信号）与 `Shutdown()`（逆序释放）；
+- **HTTP 在后台 goroutine 运行**：`ListenAndServe` 放入 goroutine，主协程专职 `signal.NotifyContext` + `<-ctx.Done()` 等待信号；收到信号后 `server.Shutdown(ctx)` 从主协程反向关闭 HTTP，使后台 goroutine 自然退出（返回 `http.ErrServerClosed`）；
+- **三阶段优雅停机**：① `server.Shutdown` 停止接入新请求并等待 in-flight 请求完成 → ② `rabbitmq.ShutdownRabbitMQ` 通过 `channel.Cancel` 停止投递、`WaitGroup` 等待 in-flight 消息落库 → ③ `redis.Close` / `mysql.Close` 回收连接；
+- **启动顺序修正**：`mysql → redis → rabbitmq(消费者) → 会话预热 → http`，消除竞态；
+- **附带可靠性提升**：MQ 消费者由 `autoAck=true`（消费中退出即丢消息）改为 `autoAck=false`，业务成功后才 `msg.Ack(false)`。
+
+### 改造前 vs 改造后
+
+| 维度 | 改造前 | 改造后 |
+|---|---|---|
+| HTTP 启动 | 主协程 `r.Run()` 直接阻塞 | goroutine 中 `ListenAndServe`，主协程等信号 |
+| 信号处理 | 无 | `signal.NotifyContext(SIGINT/SIGTERM)` |
+| 退出行为 | 硬杀，不释放资源 | 逆序优雅停机，等待 in-flight 完成 |
+| MQ 消费者 | 死循环无取消，`conn.Close` 强杀 | `channel.Cancel` + `WaitGroup` 排空 |
+| 资源释放 | 无 `Close()` | `mysql.Close` / `redis.Close` |
+| 启动顺序 | 预热早于 MQ 初始化（竞态） | 严格依赖序，无竞态 |
+| MQ Ack | `autoAck=true`（丢消息） | 手动 `Ack`（成功才确认） |
+
+### 优点
+
+- 支持 K8s `SIGTERM` 滚动发布，不中断在途请求 / 消息；
+- 应用骨架（Bootstrap）清晰分层，启动 / 停机逻辑可测试、可演进；
+- 关闭顺序与依赖顺序严格逆向对应，避免「先关依赖、后关使用者」的经典错误。
 
 ---
 

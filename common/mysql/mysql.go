@@ -70,6 +70,18 @@ func migration() error {
 	)
 }
 
+// Close 释放底层数据库连接池，供应用优雅停机时调用。
+func Close() error {
+	if DB == nil {
+		return nil
+	}
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
 func InsertUser(ctx context.Context, user *model.User) (*model.User, error) {
 	err := DB.WithContext(ctx).Create(&user).Error
 	return user, err
