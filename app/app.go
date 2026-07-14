@@ -10,12 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"GopherAI/common/aihelper"
 	"GopherAI/common/mysql"
 	"GopherAI/common/rabbitmq"
 	"GopherAI/common/redis"
 	appconfig "GopherAI/config"
-	"GopherAI/dao/message"
 	"GopherAI/router"
 )
 
@@ -27,9 +25,11 @@ const shutdownTimeout = 30 * time.Second
 //
 // 设计动机：
 //   - 原 main.go 把「初始化顺序」「HTTP 启动」「信号处理」全部手写揉在一起，
-//     既无法优雅停机，也存在 readDataFromDB 早于 InitRabbitMQ 的启动竞态。
+//     既无法优雅停机，也存在 readDataFromDB 全量预热导致的启动慢/内存膨胀。
 //   - App 把「装配（Init）→ 运行（Run）→ 优雅停机（Shutdown）」三段式生命周期
 //     收敛为单一入口，关闭顺序与依赖顺序严格逆向对应，体现应用骨架（Bootstrap）的分层设计。
+//   - 会话历史不再启动时全量预热，改为首次访问时按需惰性加载（见 AIHelper.Hydrate），
+//     启动复杂度从 O(全表消息) 降为 O(1)。
 type App struct {
 	server *http.Server
 }
@@ -52,13 +52,8 @@ func (a *App) Run() error {
 	redis.Init()
 	rabbitmq.InitRabbitMQ()
 
-	// 2. 内存会话预热（必须在 InitRabbitMQ 之后：AIHelper 的 saveFunc 依赖 MQ 发布者）
-	if err := readDataFromDB(); err != nil {
-		// 预热失败不阻塞启动，仅告警（历史消息缺失可后续按需加载）
-		log.Printf("[app] warn: preload sessions from db failed: %v", err)
-	}
-
-	// 3. 启动 HTTP 服务（在 goroutine 中运行，便于主协程阻塞等待信号）
+	// 2. 启动 HTTP 服务（在 goroutine 中运行，便于主协程阻塞等待信号）
+	//    注：会话历史不再全量预热，改为首次访问时按需惰性加载（见 AIHelper.Hydrate）
 	r := router.InitRouter()
 	a.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", host, port),
@@ -109,33 +104,5 @@ func (a *App) Shutdown() error {
 	}
 
 	log.Println("[app] shutdown complete")
-	return nil
-}
-
-// readDataFromDB 从数据库加载历史消息并预热 AIHelperManager。
-// 原实现位于 main 包，现收口到 App 生命周期内，确保其在 InitRabbitMQ 之后执行。
-func readDataFromDB() error {
-	manager := aihelper.GetGlobalManager()
-	msgs, err := message.GetAllMessages(context.Background())
-	if err != nil {
-		return err
-	}
-	for i := range msgs {
-		m := &msgs[i]
-		modelType := "1" // 默认 openai 模型
-		opts, err := aihelper.BuildSessionCreateOptions(modelType, m.UserName, "")
-		if err != nil {
-			log.Printf("[readDataFromDB] failed to build options for user=%s session=%s: %v", m.UserName, m.SessionID, err)
-			continue
-		}
-		helper, err := manager.GetOrCreateAIHelper(context.Background(), m.UserName, m.SessionID, opts)
-		if err != nil {
-			log.Printf("[readDataFromDB] failed to create helper for user=%s session=%s: %v", m.UserName, m.SessionID, err)
-			continue
-		}
-		// 添加消息到内存中（不开启存储功能）
-		helper.AddMessage(m.Content, m.UserName, m.IsUser, false)
-	}
-	log.Println("AIHelperManager init success")
 	return nil
 }

@@ -545,7 +545,7 @@ flowchart LR
 
 - 多实例扩容困难
 - 内存占用会随会话数增长
-- 重启恢复依赖全量历史加载
+- 重启后改为按需惰性加载，不再全量预热（见 13.6 节）
 
 ## 10.2 AIModelFactory
 
@@ -635,7 +635,7 @@ flowchart LR
 - 会话消息写入内存 `AIHelper`
 - 消息异步投递 MQ
 - MQ 消费者写入消息表
-- 服务重启时从消息表恢复到 `AIHelperManager`
+- 会话首次访问时从消息表惰性加载到对应 `AIHelper`（见 13.6 节）
 
 ## 11.3 RAG 数据流
 
@@ -820,7 +820,7 @@ flowchart LR
 - **生命周期骨架**：`App` 结构体封装 `Run()`（装配 → 启动 → 阻塞等信号）与 `Shutdown()`（逆序释放）；
 - **HTTP 在后台 goroutine 运行**：`ListenAndServe` 放入 goroutine，主协程专职 `signal.NotifyContext` + `<-ctx.Done()` 等待信号；收到信号后 `server.Shutdown(ctx)` 从主协程反向关闭 HTTP，使后台 goroutine 自然退出（返回 `http.ErrServerClosed`）；
 - **三阶段优雅停机**：① `server.Shutdown` 停止接入新请求并等待 in-flight 请求完成 → ② `rabbitmq.ShutdownRabbitMQ` 通过 `channel.Cancel` 停止投递、`WaitGroup` 等待 in-flight 消息落库 → ③ `redis.Close` / `mysql.Close` 回收连接；
-- **启动顺序修正**：`mysql → redis → rabbitmq(消费者) → 会话预热 → http`，消除竞态；
+- **启动顺序修正**：`mysql → redis → rabbitmq(消费者) → http`，消除竞态；
 - **附带可靠性提升**：MQ 消费者由 `autoAck=true`（消费中退出即丢消息）改为 `autoAck=false`，业务成功后才 `msg.Ack(false)`。
 
 ### 改造前 vs 改造后
@@ -841,6 +841,53 @@ flowchart LR
 - 应用骨架（Bootstrap）清晰分层，启动 / 停机逻辑可测试、可演进；
 - 关闭顺序与依赖顺序严格逆向对应，避免「先关依赖、后关使用者」的经典错误。
 
+## 13.6 会话状态外置与惰性加载（Phase 1 已落地）
+
+### 决策内容
+
+将会话历史的加载策略从「启动时全量预热」改为「首次访问时按需惰性加载」，并消除历史查询对内存预热的强依赖。这是「会话状态外置、支撑多实例」路线图（第二阶段）的第一步，刻意选择最小可行改造而非一步到位引入 Redis 共享层。
+
+### 改造前的问题
+
+- 启动时 `readDataFromDB()` 调用 `GetAllMessages` 全表扫描所有消息灌入内存，用户量大时启动极慢、内存暴涨；
+- 每条消息都会触发一次 `GetOrCreateAIHelper`（顺带 eager 构建 AIModel），启动成本为 O(全表消息)；
+- `GetChatHistory` 在 helper 不在内存时直接返回 `ServerBusy`，导致「历史强依赖内存」与「必须全量预热」形成死循环依赖；
+- 会话上下文只在本进程内存，实例重启 / 切换即丢失，无法多实例部署。
+
+### 改造后设计
+
+- **删除启动全量预热**：`app.Run()` 不再调用 `readDataFromDB`，启动复杂度从 O(全表消息) 降为 O(1)；
+- **惰性加载 `Hydrate`**：`AIHelper` 新增 `hydrated` 标记与 `Hydrate(ctx)` 方法，`GetOrCreateAIHelper` 在新建 helper 后从 `message.GetMessagesBySessionID` 按会话加载历史；
+- **锁外加载**：`Hydrate` 在 `AIHelperManager` 锁之外调用，避免 DB 查询阻塞其他会话的并发创建；
+- **幂等保证**：`hydrated` 标记 + double-check，并发下只加载一次；加载仅 `append` 内存、不回写 MQ，避免历史消息被重复发布落库；
+- **历史查询回源**：`GetChatHistory` 内存 miss 时改为从 DB 惰性加载，不再直接返回 `ServerBusy`。
+
+### 方案取舍（为什么先做 A 而不是一步到位 C）
+
+评估了三个层次：
+
+- 方案 A（已落地）：惰性加载，单实例即可，启动瓶颈当场消除；
+- 方案 B：LRU + 空闲 TTL 本地缓存，封住内存无限增长，仍单实例；
+- 方案 C：Redis 共享上下文层 + 本地热缓存，真正支撑多实例水平扩容（终局），但改动面最大、需处理跨实例一致性。
+
+选择先做 A 的理由：
+
+1. **风险收益比最优**——几乎不改变对外语义，单实例即可上线，启动瓶颈当场消除；
+2. **依赖关系**——A 是 B/C 的地基，只有先打通惰性加载主链路，LRU 淘汰与 Redis 重载才安全（否则淘汰 / 重载时会丢上下文）；
+3. **渐进交付**——A 可独立成 PR 快速合并，B/C 后续分阶段演进，不阻塞业务。
+
+### 已知权衡
+
+- **锁外加载的并发窗口**：极端并发下同一新会话可能被创建两次（后者覆盖前者），但 `hydrated` 标记 + double-check 保证不会重复加载数据，被覆盖的 helper 由 GC 回收，无副作用；
+- **单实例限制仍在**：消息经 MQ 异步落库，若某会话被淘汰后再重载，理论上可能漏掉「尚未被消费者写进 DB 的最近几轮」——该窗口留给 Phase 2/3（淘汰前同步 flush，或让 Redis 成为近期状态权威源）。
+
+### 优点
+
+- 启动不再受消息表规模影响，启动时间稳定；
+- 内存按访问量自然增长，消除「全量预热」的 OOM 风险雏形；
+- 历史查询不再因内存 miss 而失败，语义更健壮；
+- 为 Phase 2（LRU 容量治理）与 Phase 3（Redis 共享层 / 多实例）打通了主链路。
+
 ---
 
 ## 14. 当前技术难点与问题清单
@@ -849,7 +896,7 @@ flowchart LR
 
 - 会话状态依赖单进程内存
 - 多实例部署时无法自然共享上下文
-- 重启恢复依赖全量消息扫描
+- 重启后改为按需惰性加载，不再全量消息扫描（见 13.6 节）
 
 ## 14.2 工程化问题
 

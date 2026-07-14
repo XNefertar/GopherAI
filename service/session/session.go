@@ -241,25 +241,34 @@ func ChatSend(ctx context.Context, userName string, sessionID string, userQuesti
 }
 
 func GetChatHistory(userName string, sessionID string) ([]model.History, code.Code) {
-	// 获取AIHelper中的消息历史
+	// 优先从内存获取（命中热路径，低延迟）
 	manager := aihelper.GetGlobalManager()
 	helper, exists := manager.GetAIHelper(userName, sessionID)
-	if !exists {
-		return nil, code.CodeServerBusy
+	if exists {
+		messages := helper.GetMessages()
+		history := make([]model.History, 0, len(messages))
+		for _, msg := range messages {
+			history = append(history, model.History{
+				IsUser:  msg.IsUser,
+				Content: msg.Content,
+			})
+		}
+		return history, code.CodeSuccess
 	}
 
-	messages := helper.GetMessages()
-	history := make([]model.History, 0, len(messages))
-
-	// 转换消息为历史格式（根据消息顺序或内容判断用户/AI消息）
-	for _, msg := range messages {
-		isUser := msg.IsUser
+	// 不在内存：惰性从 DB 加载历史，不再强依赖启动预热而直接返回 ServerBusy
+	msgs, err := messageDao.GetMessagesBySessionID(context.Background(), sessionID)
+	if err != nil {
+		log.Printf("GetChatHistory load from db error: %v", err)
+		return nil, code.CodeServerBusy
+	}
+	history := make([]model.History, 0, len(msgs))
+	for _, msg := range msgs {
 		history = append(history, model.History{
-			IsUser:  isUser,
+			IsUser:  msg.IsUser,
 			Content: msg.Content,
 		})
 	}
-
 	return history, code.CodeSuccess
 }
 
