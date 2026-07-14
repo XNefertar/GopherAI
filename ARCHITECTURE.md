@@ -888,14 +888,56 @@ flowchart LR
 - 历史查询不再因内存 miss 而失败，语义更健壮；
 - 为 Phase 2（LRU 容量治理）与 Phase 3（Redis 共享层 / 多实例）打通了主链路。
 
+## 13.7 会话缓存容量治理：LRU + 空闲回收（Phase 2 已落地）
+
+### 决策内容
+
+在 §13.6 惰性加载主链路之上，引入带容量上限与空闲 TTL 的本地会话缓存治理，封住「内存只增不减」导致的 OOM 风险，使单实例内存可控、可预测。这是「会话状态外置、支撑多实例」路线图（第二阶段）的第二步。
+
+### 改造前的问题
+
+- §13.6 虽消除了启动预热，但会话进入内存后**只增不减**——没有容量上限、也没有回收机制，长尾会话持续累积，单实例内存仍会无限膨胀直至 OOM；
+- 淘汰 / 重载若直接把内存消息再回写 MQ，会与消费者重复落库，污染历史数据；
+- 消息经 MQ 异步落库，内存状态与 DB 状态存在时间差，淘汰瞬间无法简单判断「哪些已落库」。
+
+### 改造后设计
+
+- **LRU 容量淘汰**：`AIHelperManager` 用 `lru *list.List`（front=MRU, back=LRU）+ 两级 `map[user]map[session]*AIHelper` 维护访问顺序；`touchLocked`/`pushFrontLocked` 在持锁时移动节点，`GetOrCreateAIHelper`/`GetAIHelper` 触达即移到队首；超过 `maxSessions` 时 `lru.Back()` 取队尾 O(1) 淘汰最久未用。
+- **空闲 TTL 回收**：`Start()` 起后台 goroutine 跑 `sweep()`，`time.Ticker(idleTimeout/2)` 周期性触发 `evictIdle()`，回收 `idleFor > idleTimeout` 的会话；`Stop()` 通过 `stopCh` 优雅退出。
+- **淘汰前 Flush（不丢上下文）**：淘汰走「先 `detachLocked` 摘离（脱离 map+lru，避免并发访问）→ 释放锁 → 锁外 `Flush`」两段式，把内存中尚未落库的消息直接写回 DB。
+- **去重账本 `persisted []bool`**：与 `messages` 一一对应，`AddMessage` 追加标记为 `false`、`Hydrate` 加载的历史标记为 `true`；`Flush` 只写 `false` 项且写前即置 `true`，天然避免与 MQ 消费者重复落库。
+- **MQ 落库回灌钩子**：`rabbitmq.OnMessagePersisted` 是落库成功后的回调插槽，由 `app.go` 在启动期注入闭包桥接到 `manager.MarkPersisted`，把对应会话最早一条 `false` 翻为 `true`。钩子声明在 `rabbitmq` 包内，避免 `aihelper → rabbitmq → aihelper` 的循环依赖（依赖反转 / 控制反转）。
+- **配置化**：`config.SessionCacheConfig { maxSessions, idleTimeoutSec }` 走 TOML，缺省回退 10000 / 30min。
+- **生命周期接线**（`app.go`）：启动期接回灌钩子 + `Start()`；停机期先 `Stop()` sweeper 再 `FlushAll(ctx)` 兜底——`FlushAll` 全量遍历当前 map 内会话补写未落库消息（已脱离 map 的会话由 sweeper 自行 Flush，集合互斥、零重复）。
+- **扫描优化（空间换时间的零成本版）**：`evictIdle` 利用 LRU 严格按 `lastAccess` 降序的性质，从 `back` 向前扫描，遇到第一个未过期节点即 `break`，平均复杂度从 O(n) 降为 O(k)（k=实际过期数），零额外空间。
+
+### 方案取舍
+
+- **为何不直接「淘汰时再 Save 一次」**：消息落库是异步的（MQ 消费者在后台写），淘汰瞬间该消息「可能已落库、可能还在队列」，无脑回写必然重复插入；故引入 `persisted` 去重账本，只补写账本上的未落库项，且写前即标记，幂等去重。
+- **为何用钩子注入而非 `rabbitmq` 直接依赖 `aihelper`**：`aihelper` 已 import `rabbitmq`，反向依赖会形成编译期循环；钩子插槽把「落库事件」的控制权反转给顶层装配点 `app.go`，低层保持纯净可测。
+- **为何 `FlushAll` 保留全量遍历**：停机兜底必须保证每条消息落库，全量是正确性必需；且只发生一次，非性能热点，优化它反而可能漏写。
+
+### 已知权衡
+
+- **`MarkPersisted` 依赖单会话 FIFO 顺序**：MQ 单消费者单队列保证消息按发布顺序消费，故「标记最早一条 `false`」正确；前提是所有消息都走 `Save=true`（当前代码确实如此）。若未来引入 `Save=false` 的不落库消息，需额外区分「已发布 / 未发布」状态，否则可能被误标记。
+- **极端竞态下的理论重复**：若淘汰瞬间某消息正被消费者插入、同时又被 `Flush` 写出，存在极小概率重复行（无唯一键约束时）。属「异步落库窗口」固有代价，与现有 `Consume` 的 best-effort 容错一致；后续可用唯一键 `OnConflict` 加固。
+- **`Touch` 在 `AddMessage` 内调用**：写入即刷新空闲计时，避免活跃会话被 TTL 误回收；代价是每次写入多一次原子写，开销可忽略。
+
+### 优点
+
+- 内存从「只增不减」变为**有上限（LRU 容量）+ 自动回收（空闲 TTL）**，OOM 风险被封住，单实例内存可控可预测；
+- 启动复杂度仍是 §13.6 的 O(1)，未引入启动负担；
+- 淘汰 / 停机均不丢上下文、不与 MQ 重复落库，语义健壮；
+- 多实例化的地基进一步夯实——Phase 3 的 Redis 共享层可在 LRU 之上叠加，本地热缓存 + 远端权威源的分层结构已就绪。
+
 ---
 
 ## 14. 当前技术难点与问题清单
 
 ## 14.1 架构层问题
 
-- 会话状态依赖单进程内存
-- 多实例部署时无法自然共享上下文
+- 会话状态依赖单进程内存（Phase 2 已加 LRU 容量治理，封住无限增长，见 13.7 节；仍为单实例）
+- 多实例部署时无法自然共享上下文（待 Phase 3 Redis 共享层）
 - 重启后改为按需惰性加载，不再全量消息扫描（见 13.6 节）
 
 ## 14.2 工程化问题
