@@ -48,3 +48,7 @@ charset =  "utf8mb4"
   [voiceServiceConfig]
   voiceServiceApiKey = "baiduApiKey"
   voiceServiceSecretKey ="baiduSecretKey"
+
+[sessionCacheConfig]
+maxSessions = 5000
+idleTimeoutSec = 1800

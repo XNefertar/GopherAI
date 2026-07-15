@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"GopherAI/common/aihelper"
 	"GopherAI/common/mysql"
 	"GopherAI/common/rabbitmq"
 	"GopherAI/common/redis"
@@ -52,6 +53,14 @@ func (a *App) Run() error {
 	redis.Init()
 	rabbitmq.InitRabbitMQ()
 
+	// 1.5 会话缓存容量治理接线：
+	//   - 把 MQ 落库成功的回灌通道接到 manager，让淘汰前的 Flush 精确判断已落库消息，避免重复写；
+	//   - 启动后台空闲回收 sweeper（按 idleTimeout 淘汰长时间无访问的会话）。
+	rabbitmq.OnMessagePersisted = func(userName, sessionID string) {
+		aihelper.GetGlobalManager().MarkPersisted(userName, sessionID)
+	}
+	aihelper.GetGlobalManager().Start()
+
 	// 2. 启动 HTTP 服务（在 goroutine 中运行，便于主协程阻塞等待信号）
 	//    注：会话历史不再全量预热，改为首次访问时按需惰性加载（见 AIHelper.Hydrate）
 	r := router.InitRouter()
@@ -92,6 +101,11 @@ func (a *App) Shutdown() error {
 	// ② 排空消费：停止投递新消息，等待 in-flight 消息落库完成
 	log.Println("[app] shutting down rabbitmq consumer...")
 	rabbitmq.ShutdownRabbitMQ(ctx)
+
+	// ②.5 落库兜底：先停 sweeper，再把内存中尚未被 MQ 消费者写回 DB 的消息直接 Flush，
+	//      避免停机丢上下文（已脱离 map 的会话由 sweeper 自行 Flush，不会重复写）。
+	aihelper.GetGlobalManager().Stop()
+	aihelper.GetGlobalManager().FlushAll(ctx)
 
 	// ③ 释放连接：Redis → MySQL
 	log.Println("[app] closing redis...")
