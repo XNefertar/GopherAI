@@ -19,11 +19,13 @@ func initConn() {
 		"amqp://%s:%s@%s:%d/%s",
 		c.RabbitmqUsername, c.RabbitmqPassword, c.RabbitmqHost, c.RabbitmqPort, c.RabbitmqVhost,
 	)
-	log.Println("mqUrl is  " + mqUrl)
+	log.Println("[rabbitmq] connecting to " + mqUrl)
 	var err error
 	conn, err = amqp.Dial(mqUrl)
 	if err != nil {
-		log.Fatalf("RabbitMQ connection failed: %v", err) // 输出错误并退出程序
+		// RabbitMQ 不可用时优雅降级：消息落库走同步写 DB，服务正常运行
+		log.Printf("[rabbitmq] connection failed (non-fatal): %v", err)
+		conn = nil
 	}
 }
 
@@ -42,33 +44,46 @@ func NewRabbitMQ(exchange string, key string) *RabbitMQ {
 
 // Destroy 断开 channel 和 connection
 func (r *RabbitMQ) Destroy() {
-	_ = r.channel.Close()
-	_ = r.conn.Close()
+	if r.channel != nil {
+		_ = r.channel.Close()
+	}
+	if r.conn != nil {
+		_ = r.conn.Close()
+	}
 }
 
 // NewWorkRabbitMQ 创建Work模式的RabbitMQ实例
 func NewWorkRabbitMQ(queue string) *RabbitMQ {
-	// new rabbitmq
 	rabbitmq := NewRabbitMQ("", queue)
 
-	// get connection
+	// 获取连接（首次调用时初始化）
 	if conn == nil {
 		initConn()
 	}
+	// 连接失败：conn 为 nil，返回的 RabbitMQ 实例的 channel 也为 nil，
+	// Publish 方法会打印警告并跳过。
+	if conn == nil {
+		log.Printf("[rabbitmq] no connection, queue=%s messages will fallback to sync DB write", queue)
+		return rabbitmq
+	}
 	rabbitmq.conn = conn
 
-	// get channel
+	// 获取 channel
 	var err error
 	rabbitmq.channel, err = rabbitmq.conn.Channel()
 	if err != nil {
-		panic(err.Error())
+		log.Printf("[rabbitmq] create channel failed (non-fatal): %v", err)
+		return rabbitmq
 	}
 
 	return rabbitmq
 }
 
-// Publish 发送消息
+// Publish 发送消息。若 RabbitMQ 不可用则静默跳过（消息将在淘汰/停机时通过 Flush 同步写 DB）。
 func (r *RabbitMQ) Publish(message []byte) error {
+	if r == nil || r.channel == nil {
+		return fmt.Errorf("rabbitmq not available, message will be flushed to DB on eviction/shutdown")
+	}
 	// 创建队列（不存在时）
 	// 使用默认交换机的情况下，queue即为key
 	_, err := r.channel.QueueDeclare(r.Key, false, false, false, false, nil)
@@ -89,6 +104,10 @@ func (r *RabbitMQ) Publish(message []byte) error {
 // handle: 消息的消费业务函数，用于消费消息；返回 nil 时自动 Ack，非 nil 时暂不重投（避免重复落库）。
 // consumerTag: 消费者标识，用于 Shutdown 时精确取消该消费者。
 func (r *RabbitMQ) Consume(consumerTag string, handle func(msg *amqp.Delivery) error) {
+	if r.channel == nil {
+		log.Printf("[rabbitmq] no channel, consumer=%s will not run", consumerTag)
+		return
+	}
 	// 创建队列
 	q, err := r.channel.QueueDeclare(r.Key, false, false, false, false, nil)
 	if err != nil {
