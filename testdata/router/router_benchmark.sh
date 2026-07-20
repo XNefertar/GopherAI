@@ -1,7 +1,7 @@
 #!/bin/bash
 # 路由器 QPS 与延迟测试
-# 用法: bash testdata/router_benchmark.sh [并发数] [请求总数]
-# 示例: bash testdata/router_benchmark.sh 5 20
+# 用法: bash testdata/router/router_benchmark.sh [并发数] [请求总数]
+# 示例: bash testdata/router/router_benchmark.sh 5 20
 
 CONCURRENCY=${1:-3}
 TOTAL=${2:-15}

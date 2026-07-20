@@ -1,6 +1,6 @@
 #!/bin/bash
 # 路由器功能测试用例
-# 用法: bash testdata/router_test_cases.sh
+# 用法: bash testdata/router/router_test_cases.sh
 # 前置: 项目已启动 (go run main.go), Ollama 已启动 (ollama serve &)
 
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywidXNlcm5hbWUiOiIxMzgyOTI3MTA0OCIsImlzcyI6Imh1YW5oZWFydCIsInN1YiI6IkdvcGhlckFJIiwiZXhwIjoxODE2MDgyMjU2LCJpYXQiOjE3ODQ1NDYyNTZ9.3wdoSvDiV-sRjyTYWOYyZHEPaqHwSx_MKw4TjOeQ_v8"

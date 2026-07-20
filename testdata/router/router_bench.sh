@@ -1,6 +1,6 @@
 #!/bin/bash
 # 路由器压力测试：60 条真实风格 query，覆盖四类意图 + 边缘 case
-# 用法: bash testdata/router_bench.sh
+# 用法: bash testdata/router/router_bench.sh
 
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywidXNlcm5hbWUiOiIxMzgyOTI3MTA0OCIsImlzcyI6Imh1YW5oZWFydCIsInN1YiI6IkdvcGhlckFJIiwiZXhwIjoxODE2MDgyMjU2LCJpYXQiOjE3ODQ1NDYyNTZ9.3wdoSvDiV-sRjyTYWOYyZHEPaqHwSx_MKw4TjOeQ_v8"
 BASE="http://localhost:9090/api/v1/AI/chat/send-new-session"

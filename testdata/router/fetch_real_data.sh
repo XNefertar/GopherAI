@@ -1,7 +1,7 @@
 #!/bin/bash
 # 下载公开真实对话数据集，随机采样 200 条做路由器压测
 # 来源: BELLE (中文指令) + Dolly (英文指令)
-# 用法: bash testdata/fetch_real_data.sh
+# 用法: bash testdata/router/fetch_real_data.sh
 
 set -e
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywidXNlcm5hbWUiOiIxMzgyOTI3MTA0OCIsImlzcyI6Imh1YW5oZWFydCIsInN1YiI6IkdvcGhlckFJIiwiZXhwIjoxODE2MDgyMjU2LCJpYXQiOjE3ODQ1NDYyNTZ9.3wdoSvDiV-sRjyTYWOYyZHEPaqHwSx_MKw4TjOeQ_v8"
@@ -11,8 +11,8 @@ SAMPLES=200
 echo "=== 1. 下载数据集 ==="
 
 # BELLE 中文指令数据集（3.5M+ 条，取 school_math 子集最快）
-mkdir -p testdata/datasets
-cd testdata/datasets
+mkdir -p testdata/router/datasets
+cd testdata/router/datasets
 
 # 下载 BELLE 子集（约 20MB，包含各类真实提问）
 if [ ! -f belle_10k.jsonl ]; then
@@ -72,7 +72,7 @@ cd ../..
 
 echo ""
 echo "=== 2. 如果 Belle 下载失败，用模板生成后备数据 ==="
-if [ ! -f testdata/belle_1k_queries.txt ] || [ $(wc -l < testdata/belle_1k_queries.txt) -lt 50 ]; then
+if [ ! -f testdata/router/belle_1k_queries.txt ] || [ $(wc -l < testdata/router/belle_1k_queries.txt) -lt 50 ]; then
   python3 -c "
 import random
 random.seed(42)
@@ -118,18 +118,18 @@ extras = ['你好','谢谢','hello','在吗','早上好','今天天气怎么样'
           '推荐一本书','周末去哪里玩','你会写诗吗',
           '你的优势是什么','能帮我写周报吗']
 queries.extend(extras)
-with open('testdata/belle_1k_queries.txt','w') as f:
+with open('testdata/router/belle_1k_queries.txt','w') as f:
     for q in queries:
         f.write(q.strip() + '\n')
 print(f'Generated {len(queries)} diverse test queries')
 "
 fi
 
-TOTAL=$(wc -l < testdata/belle_1k_queries.txt | tr -d ' ')
+TOTAL=$(wc -l < testdata/router/belle_1k_queries.txt | tr -d ' ')
 echo "=== 3. 从 ${TOTAL} 条真实风格 query 中随机采样 ${SAMPLES} 条 ==="
 
 # 随机采样（macOS 没有 shuf，用 sort -R）
-sort -R testdata/belle_1k_queries.txt | head -$SAMPLES > testdata/sampled_queries.txt
+sort -R testdata/router/belle_1k_queries.txt | head -$SAMPLES > testdata/router/sampled_queries.txt
 
 echo "=== 4. 并行发送请求（每次 3 条并发，单条超时 20s）==="
 START_TIME=$(date +%s)
@@ -152,7 +152,7 @@ while IFS= read -r query; do
     ELAPSED=$(($(date +%s) - START_TIME))
     echo "  [${ELAPSED}s] 已发送 $COUNT / $SAMPLES 条"
   fi
-done < testdata/sampled_queries.txt
+done < testdata/router/sampled_queries.txt
 
 # 等最后一批完成
 wait
@@ -165,4 +165,4 @@ curl -s http://localhost:9090/debug/router/stats | python3 -m json.tool
 
 echo ""
 echo "=== 采样 query 样本（前 10 条）==="
-head -10 testdata/sampled_queries.txt
+head -10 testdata/router/sampled_queries.txt

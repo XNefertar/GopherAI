@@ -1,6 +1,6 @@
 #!/bin/bash
 # 路由器综合测试：60 条 query，覆盖 4 类意图 + 中英文 + 长短 + 口语/正式
-# 用法: bash testdata/router_comprehensive_test.sh
+# 用法: bash testdata/router/router_comprehensive_test.sh
 
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywidXNlcm5hbWUiOiIxMzgyOTI3MTA0OCIsImlzcyI6Imh1YW5oZWFydCIsInN1YiI6IkdvcGhlckFJIiwiZXhwIjoxODE2MDgyMjU2LCJpYXQiOjE3ODQ1NDYyNTZ9.3wdoSvDiV-sRjyTYWOYyZHEPaqHwSx_MKw4TjOeQ_v8"
 BASE="http://localhost:9090/api/v1/AI/chat/send-new-session"
