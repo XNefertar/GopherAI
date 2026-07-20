@@ -49,7 +49,7 @@ type anchoringExample struct {
 //   - 每个意图的样例之间有语义多样性
 //   - 避免过于相似的样例（防止中心过度偏向某种表达）
 var anchorQueries = []anchoringExample{
-	// ---- chat: 闲聊/问候/简单问答 ----
+	// ---- chat: 闲聊/问候/简单问答 (14 条) ----
 	{Intent: IntentChat, Query: "你好"},
 	{Intent: IntentChat, Query: "早上好"},
 	{Intent: IntentChat, Query: "谢谢你帮我"},
@@ -58,8 +58,14 @@ var anchorQueries = []anchoringExample{
 	{Intent: IntentChat, Query: "讲个笑话吧"},
 	{Intent: IntentChat, Query: "hi there, how are you"},
 	{Intent: IntentChat, Query: "你能做什么"},
+	{Intent: IntentChat, Query: "好无聊啊聊聊天"},
+	{Intent: IntentChat, Query: "今天星期几"},
+	{Intent: IntentChat, Query: "推荐一首歌"},
+	{Intent: IntentChat, Query: "讲个故事给我听"},
+	{Intent: IntentChat, Query: "你会些什么"},
+	{Intent: IntentChat, Query: "晚安"},
 
-	// ---- knowledge: 文档/知识库检索 ----
+	// ---- knowledge: 文档/知识库检索 (14 条) ----
 	{Intent: IntentKnowledge, Query: "根据文档回答这个问题"},
 	{Intent: IntentKnowledge, Query: "知识库里怎么说的"},
 	{Intent: IntentKnowledge, Query: "上传的文件中有没有关于XX的内容"},
@@ -67,8 +73,15 @@ var anchorQueries = []anchoringExample{
 	{Intent: IntentKnowledge, Query: "这个在白皮书里是怎么描述的"},
 	{Intent: IntentKnowledge, Query: "参考上传的文档，解释XX"},
 	{Intent: IntentKnowledge, Query: "What does the uploaded document say about this"},
+	{Intent: IntentKnowledge, Query: "上次发的那个文档里怎么说的"},
+	{Intent: IntentKnowledge, Query: "之前上传的文件还能查到吗"},
+	{Intent: IntentKnowledge, Query: "看看资料里有没有"},
+	{Intent: IntentKnowledge, Query: "SOP 里规定的流程是什么"},
+	{Intent: IntentKnowledge, Query: "编码规范里怎么要求命名的"},
+	{Intent: IntentKnowledge, Query: "查一下说明书"},
+	{Intent: IntentKnowledge, Query: "手册里有没有提到"},
 
-	// ---- tool: 工具调用/外部系统交互 ----
+	// ---- tool: 工具调用/外部系统交互 (14 条) ----
 	{Intent: IntentTool, Query: "帮我查一下今天的天气"},
 	{Intent: IntentTool, Query: "调用天气接口查北京"},
 	{Intent: IntentTool, Query: "执行系统命令查看状态"},
@@ -76,8 +89,15 @@ var anchorQueries = []anchoringExample{
 	{Intent: IntentTool, Query: "拉取最新的数据"},
 	{Intent: IntentTool, Query: "Use the weather tool to check Shanghai"},
 	{Intent: IntentTool, Query: "帮我查一下系统里的库存"},
+	{Intent: IntentTool, Query: "今天多少度"},
+	{Intent: IntentTool, Query: "查一下服务器负载"},
+	{Intent: IntentTool, Query: "备份数据库"},
+	{Intent: IntentTool, Query: "发一条短信验证码"},
+	{Intent: IntentTool, Query: "查询订单物流状态"},
+	{Intent: IntentTool, Query: "重启服务"},
+	{Intent: IntentTool, Query: "查看日志"},
 
-	// ---- reasoning: 复杂推理/分析/编码 ----
+	// ---- reasoning: 复杂推理/分析/编码 (14 条) ----
 	{Intent: IntentReasoning, Query: "分析这段代码的性能瓶颈"},
 	{Intent: IntentReasoning, Query: "比较A方案和B方案的优缺点"},
 	{Intent: IntentReasoning, Query: "推理一下这个问题的根本原因"},
@@ -86,6 +106,12 @@ var anchorQueries = []anchoringExample{
 	{Intent: IntentReasoning, Query: "解释这个算法的时间复杂度"},
 	{Intent: IntentReasoning, Query: "Analyze the trade-offs between the two approaches"},
 	{Intent: IntentReasoning, Query: "证明这个数学定理"},
+	{Intent: IntentReasoning, Query: "这段 SQL 为什么这么慢"},
+	{Intent: IntentReasoning, Query: "Microservices vs monolith which is better"},
+	{Intent: IntentReasoning, Query: "怎么优化接口响应时间"},
+	{Intent: IntentReasoning, Query: "这两个方法哪个更优"},
+	{Intent: IntentReasoning, Query: "帮我看看这代码有什么问题"},
+	{Intent: IntentReasoning, Query: "有没有更好的实现方式"},
 }
 
 // EmbeddingIntentMatcher 基于 Embedding 向量相似度的快速意图匹配器。
