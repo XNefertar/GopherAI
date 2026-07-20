@@ -209,6 +209,11 @@ func newClassifierOpenAI(ctx context.Context) (model.ToolCallingChatModel, error
 // Route 执行三层渐进式路由：L1 Embedding → L2 LLM → L3 规则。
 func (r *LLMClassifierRouter) Route(ctx context.Context, userName, sessionID, question string, stream bool) (RouteDecision, error) {
 	q := strings.TrimSpace(question)
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start).Milliseconds()
+		log.Printf("[router] route latency=%dms query=%q", elapsed, truncate(q, 50))
+	}()
 
 	// ═══════════════════════════════════════════════
 	// Step 0: 关键词短路 — 极其明显的问候/告别，跳过 L1/L2
