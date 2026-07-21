@@ -26,7 +26,7 @@ charset =  "utf8mb4"
  expire_duration= 8760
  issuer= "huanheart"
  subject= "GopherAI"
- key= "GopherAI-v1"
+ key= "GopherAI"
 
  [rabbitmqConfig]
   host= "127.0.0.1"
