@@ -61,6 +61,10 @@ func (a *App) Run() error {
 	}
 	aihelper.GetGlobalManager().Start()
 
+	// 1.6 主动初始化全局混合路由器（LLM 语义分类器），
+	//     提前创建分类器 LLM 客户端并在启动日志中暴露创建结果。
+	aihelper.InitGlobalRouter(context.Background())
+
 	// 2. 启动 HTTP 服务（在 goroutine 中运行，便于主协程阻塞等待信号）
 	//    注：会话历史不再全量预热，改为首次访问时按需惰性加载（见 AIHelper.Hydrate）
 	r := router.InitRouter()

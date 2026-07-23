@@ -26,7 +26,7 @@ charset =  "utf8mb4"
  expire_duration= 8760
  issuer= "huanheart"
  subject= "GopherAI"
- key= "GopherAI-v1"
+ key= "GopherAI"
 
  [rabbitmqConfig]
   host= "127.0.0.1"
@@ -52,3 +52,18 @@ charset =  "utf8mb4"
 [sessionCacheConfig]
 maxSessions = 5000
 idleTimeoutSec = 1800
+
+# ── 混合路由器配置（L1 Embedding + L2 LLM + L3 规则）──
+# 所有参数均为可选，未配置时使用代码内置默认值。
+[routerConfig]
+# L1: Embedding 快速意图匹配
+# embeddingEnabled = true       # 是否启用 L1（默认 true）
+# embeddingThreshold = 0.85     # 相似度阈值 [0-1]（默认 0.85）
+# embeddingMargin = 0.08        # 意图间最小裕度（默认 0.08）
+# embeddingTimeoutMs = 500      # API 超时毫秒（默认 500）
+
+# L2: LLM 语义分类 + Query 改写
+# llmClassifierEnabled = true   # 是否启用 L2（默认 true）
+# llmClassifierTimeoutMs = 800  # LLM 超时毫秒（默认 800）
+# llmConfidenceThreshold = 0.55 # 置信度阈值 [0-1]（默认 0.55）
+# llmRewriteEnabled = true      # Query 改写开关（默认 true）

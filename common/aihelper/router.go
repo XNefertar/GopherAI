@@ -162,14 +162,26 @@ var (
 	globalRouterMu   sync.RWMutex
 )
 
-// GetGlobalRouter 获取全局混合路由器，默认使用规则路由器。
+// GetGlobalRouter 获取全局混合路由器。
+//
+// 默认使用 LLMClassifierRouter（轻量 LLM 语义分类 + 规则降级），
+// 在进程启动阶段通过 InitGlobalRouter(ctx) 确保分类器 LLM 已创建。
+// 若进程未调用 InitGlobalRouter，sync.Once 内会使用 context.Background() 兜底创建。
 func GetGlobalRouter() HybridRouter {
 	globalRouterOnce.Do(func() {
-		globalRouter = NewRuleBasedRouter()
+		globalRouter = NewLLMClassifierRouter(context.Background())
 	})
 	globalRouterMu.RLock()
 	defer globalRouterMu.RUnlock()
 	return globalRouter
+}
+
+// InitGlobalRouter 在进程启动阶段主动初始化全局路由器。
+// 应在 App.Run() 中、基础设施就绪后调用，确保分类器 LLM 尽早创建并暴露失败日志。
+func InitGlobalRouter(ctx context.Context) {
+	globalRouterOnce.Do(func() {
+		globalRouter = NewLLMClassifierRouter(ctx)
+	})
 }
 
 // SetGlobalRouter 注入自定义路由器（例如带成本统计、A/B 实验、模型质量评估的版本）。

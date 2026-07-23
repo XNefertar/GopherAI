@@ -76,6 +76,102 @@ type SessionCacheConfig struct {
 	IdleTimeoutSec int `toml:"idleTimeoutSec"` // 会话空闲超过该秒数则被后台回收
 }
 
+// RouterConfig 混合路由器配置（L1 Embedding + L2 LLM + L3 规则）。
+// 所有参数均为可选：未配置时使用代码内置默认值，不会影响服务可用性。
+// 布尔字段使用指针类型，以便区分"未配置（nil）"和"显式设为 false"。
+type RouterConfig struct {
+	// --- L1: Embedding 快速匹配 ---
+	EmbeddingEnabled   *bool   `toml:"embeddingEnabled"`   // 是否启用 L1（默认 true）
+	EmbeddingThreshold float64 `toml:"embeddingThreshold"` // 相似度阈值（默认 0.85）
+	EmbeddingMargin    float64 `toml:"embeddingMargin"`    // 意图间最小裕度（默认 0.08）
+	EmbeddingTimeoutMs int     `toml:"embeddingTimeoutMs"` // Embedding API 超时毫秒（默认 500）
+
+	// --- L2: LLM 语义分类 ---
+	LLMClassifierEnabled   *bool   `toml:"llmClassifierEnabled"`   // 是否启用 L2（默认 true）
+	LLMClassifierTimeoutMs int     `toml:"llmClassifierTimeoutMs"` // LLM 分类超时毫秒（默认 800）
+	LLMConfidenceThreshold float64 `toml:"llmConfidenceThreshold"`  // 置信度阈值（默认 0.55）
+	LLMRewriteEnabled      *bool   `toml:"llmRewriteEnabled"`       // Query 改写开关（默认 true）
+}
+
+// boolPtr 便捷工厂：返回一个 bool 指针。
+func boolPtr(v bool) *bool { return &v }
+
+// RouterDefaults 路由器的所有默认值，收口在一处便于维护。
+var RouterDefaults = RouterConfig{
+	EmbeddingEnabled:       boolPtr(true),
+	EmbeddingThreshold:     0.85,
+	EmbeddingMargin:        0.08,
+	EmbeddingTimeoutMs:     500,
+	LLMClassifierEnabled:   boolPtr(true),
+	LLMClassifierTimeoutMs: 800,
+	LLMConfidenceThreshold: 0.55,
+	LLMRewriteEnabled:      boolPtr(true),
+}
+
+// EmbeddingEnabledOrDefault 返回 L1 是否启用（带默认值）。
+func (c RouterConfig) EmbeddingEnabledOrDefault() bool {
+	if c.EmbeddingEnabled != nil {
+		return *c.EmbeddingEnabled
+	}
+	return *RouterDefaults.EmbeddingEnabled
+}
+
+// EmbeddingThresholdOrDefault 返回 L1 相似度阈值（带默认值）。
+func (c RouterConfig) EmbeddingThresholdOrDefault() float64 {
+	if c.EmbeddingThreshold > 0 {
+		return c.EmbeddingThreshold
+	}
+	return RouterDefaults.EmbeddingThreshold
+}
+
+// EmbeddingMarginOrDefault 返回 L1 意图裕度（带默认值）。
+func (c RouterConfig) EmbeddingMarginOrDefault() float64 {
+	if c.EmbeddingMargin > 0 {
+		return c.EmbeddingMargin
+	}
+	return RouterDefaults.EmbeddingMargin
+}
+
+// EmbeddingTimeoutOrDefaultMs 返回 L1 Embedding 超时毫秒数（带默认值）。
+func (c RouterConfig) EmbeddingTimeoutOrDefaultMs() int {
+	if c.EmbeddingTimeoutMs > 0 {
+		return c.EmbeddingTimeoutMs
+	}
+	return RouterDefaults.EmbeddingTimeoutMs
+}
+
+// LLMClassifierEnabledOrDefault 返回 L2 是否启用（带默认值）。
+func (c RouterConfig) LLMClassifierEnabledOrDefault() bool {
+	if c.LLMClassifierEnabled != nil {
+		return *c.LLMClassifierEnabled
+	}
+	return *RouterDefaults.LLMClassifierEnabled
+}
+
+// LLMClassifierTimeoutOrDefaultMs 返回 L2 LLM 分类超时毫秒数（带默认值）。
+func (c RouterConfig) LLMClassifierTimeoutOrDefaultMs() int {
+	if c.LLMClassifierTimeoutMs > 0 {
+		return c.LLMClassifierTimeoutMs
+	}
+	return RouterDefaults.LLMClassifierTimeoutMs
+}
+
+// LLMConfidenceThresholdOrDefault 返回 L2 置信度阈值（带默认值）。
+func (c RouterConfig) LLMConfidenceThresholdOrDefault() float64 {
+	if c.LLMConfidenceThreshold > 0 {
+		return c.LLMConfidenceThreshold
+	}
+	return RouterDefaults.LLMConfidenceThreshold
+}
+
+// LLMRewriteEnabledOrDefault 返回 Query 改写开关（带默认值）。
+func (c RouterConfig) LLMRewriteEnabledOrDefault() bool {
+	if c.LLMRewriteEnabled != nil {
+		return *c.LLMRewriteEnabled
+	}
+	return *RouterDefaults.LLMRewriteEnabled
+}
+
 type Config struct {
 	EmailConfig        `toml:"emailConfig"`
 	RedisConfig        `toml:"redisConfig"`
@@ -86,6 +182,7 @@ type Config struct {
 	RagModelConfig     `toml:"ragModelConfig"`
 	VoiceServiceConfig `toml:"voiceServiceConfig"`
 	SessionCache       SessionCacheConfig `toml:"sessionCacheConfig"`
+	Router             RouterConfig       `toml:"routerConfig"`
 	// Model 来自环境变量，不参与 TOML 反序列化
 	Model ModelConfig `toml:"-"`
 }
